@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 import csv
 import os
+import pdb
+
 from dataclasses import dataclass, field
 from typing import Callable, Iterable, List, Optional, Sequence
 from pathlib import Path
@@ -11,9 +13,11 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 from skimage.feature import local_binary_pattern as skimage_lbp
+from scipy.ndimage import gaussian_filter
 from .visualize_matches_mvc import visualize_matches
 
 from .distance_metrics import chi2_distance, get_distance_metric
+from .ltp import local_ternary_pattern, LTPResult
 
 @dataclass
 class ImageRecord:
@@ -101,6 +105,10 @@ class LBPFacade:
         if gray_2d.ndim != 2:
             raise ValueError("LBP input must be a 2D grayscale array")
 
+        if self.method == "ltp":
+            # For testing: return a simple pattern based on pixel intensity
+            lbp_codes: LTPResult = local_ternary_pattern(gray_2d, p=self.P, r=self.R, method="ror")
+            return lbp_codes.histogram
         lbp = skimage_lbp(gray_2d, P=self.P, R=self.R, method=self.method)
 
         # skimage may return float; cast safely
@@ -124,6 +132,8 @@ class LBPHistogramAdapter:
     def __call__(self, lbp_codes: np.ndarray) -> np.ndarray:
         if lbp_codes is None or lbp_codes.size == 0:
             return np.zeros(self.bins, dtype=np.float64)
+        if lbp_codes.ndim == 1:
+            return lbp_codes
         hist = np.bincount(lbp_codes.ravel(), minlength=self.bins).astype(np.float64)
         s = hist.sum()
         if s > 0:
@@ -152,6 +162,7 @@ class ImageFolderLoader:
     X: Optional[int] = None
     Y: Optional[int] = None
     use_gray_image_for_viz: bool = False
+    use_gaussian_blur: bool = False
 
     def __call__(self, _records: Sequence[ImageRecord] = ()) -> Sequence[ImageRecord]:
         # First pass: load images and compute raw LBP arrays
@@ -184,6 +195,8 @@ class ImageFolderLoader:
                         viz_img = center_crop_pil(viz_img, self.X, self.Y)
                         if self.use_gray_image_for_viz:
                             viz_img = viz_img.convert("L")
+                    if self.use_gaussian_blur:
+                        gray_arr = gaussian_filter(gray_arr, sigma=1)
 
             except Exception:
                 continue
@@ -311,15 +324,19 @@ def print_verbose_report(records: Sequence[ImageRecord]) -> None:
     correct_count = sum(1 for r in records if bool(r.correct))
     pct = 100.0 * correct_count / total if total else 0.0
 
+    lowest_correct = float("inf")
     lowest_incorrect = float("inf")
     highest_correct = float("-inf")
+    highest_incorrect = float("-inf")
 
     for r in records:
         if r.nn_distance is None:
             continue
         if bool(r.correct):
             highest_correct = max(highest_correct, r.nn_distance)
+            lowest_correct = min(lowest_correct, r.nn_distance)
         else:
+            highest_incorrect = max(highest_incorrect, r.nn_distance)
             lowest_incorrect = min(lowest_incorrect, r.nn_distance)
 
     # for r in records:
@@ -332,6 +349,10 @@ def print_verbose_report(records: Sequence[ImageRecord]) -> None:
     print(f"Correct matches: {correct_count}/{total} ({pct:.2f}%)")
     print(f"Highest distance among correct matches: {highest_correct:.6f}" if highest_correct != float("-inf") else
           "Highest distance among correct matches: N/A")
+    print(f"Lowest distance among correct matches: {lowest_correct:.6f}" if lowest_correct != float("-inf") else
+          "Lowest distance among correct matches: N/A")
+    print(f"Highest distance among incorrect matches: {highest_incorrect:.6f}" if highest_incorrect != float("inf") else
+          "Highest distance among incorrect matches: N/A")
     print(f"Lowest distance among incorrect matches: {lowest_incorrect:.6f}" if lowest_incorrect != float("inf") else
           "Lowest distance among incorrect matches: N/A")
 
@@ -349,7 +370,7 @@ def main() -> None:
     "--method",
     type=str,
     default="uniform",
-    choices=["default", "ror", "uniform", "var"],
+    choices=["default", "ror", "uniform", "var", "ltp"],
     help="LBP method for skimage.feature.local_binary_pattern (default: 'uniform')",
     )
     parser.add_argument(
@@ -371,6 +392,7 @@ def main() -> None:
     parser.add_argument("--Y", type=int, default=None, help="Height of centermost region for LBP (optional)")
     parser.add_argument("--V", action="store_true", help="Print verbose output")
     parser.add_argument("--G", action="store_true", help="Use grayscale image in visualization")
+    parser.add_argument("--B", action="store_true", help="Use gaussian blur image preproceessing")
 
     args = parser.parse_args()
 
@@ -382,6 +404,7 @@ def main() -> None:
         X=args.X,
         Y=args.Y,
         use_gray_image_for_viz=args.G,
+        use_gaussian_blur=args.B,
     )
 
     pipeline = Pipeline(
