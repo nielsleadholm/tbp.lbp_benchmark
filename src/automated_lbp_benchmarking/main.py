@@ -18,6 +18,7 @@ from .visualize_matches_mvc import visualize_matches
 
 from .distance_metrics import chi2_distance, get_distance_metric
 from .ltp import local_ternary_pattern, LTPResult
+from datetime import datetime
 
 @dataclass
 class ImageRecord:
@@ -100,14 +101,15 @@ class LBPFacade:
     P: int = 8
     R: float = 1.0
     method: str = "uniform"
+    use_ltp: bool = False
 
     def __call__(self, gray_2d: np.ndarray) -> np.ndarray:
         if gray_2d.ndim != 2:
             raise ValueError("LBP input must be a 2D grayscale array")
 
-        if self.method == "ltp":
+        if self.use_ltp:
             # For testing: return a simple pattern based on pixel intensity
-            lbp_codes: LTPResult = local_ternary_pattern(gray_2d, p=self.P, r=self.R, method="ror")
+            lbp_codes: LTPResult = local_ternary_pattern(gray_2d, p=self.P, r=self.R, method=self.method)
             return lbp_codes.histogram
         lbp = skimage_lbp(gray_2d, P=self.P, R=self.R, method=self.method)
 
@@ -162,7 +164,7 @@ class ImageFolderLoader:
     X: Optional[int] = None
     Y: Optional[int] = None
     use_gray_image_for_viz: bool = False
-    use_gaussian_blur: bool = False
+    gaussian_blur: float = 0.0
 
     def __call__(self, _records: Sequence[ImageRecord] = ()) -> Sequence[ImageRecord]:
         # First pass: load images and compute raw LBP arrays
@@ -195,8 +197,8 @@ class ImageFolderLoader:
                         viz_img = center_crop_pil(viz_img, self.X, self.Y)
                         if self.use_gray_image_for_viz:
                             viz_img = viz_img.convert("L")
-                    if self.use_gaussian_blur:
-                        gray_arr = gaussian_filter(gray_arr, sigma=1)
+                    if self.gaussian_blur > 0.0:
+                        gray_arr = gaussian_filter(gray_arr, sigma=self.gaussian_blur)
 
             except Exception:
                 continue
@@ -303,6 +305,7 @@ def save_matches_csv(records: Sequence[ImageRecord], out_path: str) -> None:
     results_dir.mkdir(exist_ok=True)
 
     # Build full output path
+    out_path = out_path + "_" + datetime.now().strftime("%Y%m%d_%H%M%S_") + ".csv"
     output_path = results_dir / out_path
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -339,22 +342,20 @@ def print_verbose_report(records: Sequence[ImageRecord]) -> None:
             highest_incorrect = max(highest_incorrect, r.nn_distance)
             lowest_incorrect = min(lowest_incorrect, r.nn_distance)
 
-    # for r in records:
-    #     print(
-    #         f"Instance: {r.instance}, Category: {r.category}, "
-    #         f"NN distance: {r.nn_distance}, Matched: {r.matched_category}, Correct: {r.correct}"
-    #     )
-    #     print(f"LBP Histogram: {r.lbp_hist}\n")
-
-    print(f"Correct matches: {correct_count}/{total} ({pct:.2f}%)")
-    print(f"Highest distance among correct matches: {highest_correct:.6f}" if highest_correct != float("-inf") else
+    summary_lines = []
+    summary_lines.append(f"Correct matches: {correct_count}/{total} ({pct:.2f}%)")
+    summary_lines.append(f"Highest distance among correct matches: {highest_correct:.6f}" if highest_correct != float("-inf") else
           "Highest distance among correct matches: N/A")
-    print(f"Lowest distance among correct matches: {lowest_correct:.6f}" if lowest_correct != float("-inf") else
+    summary_lines.append(f"Lowest distance among correct matches: {lowest_correct:.6f}" if lowest_correct != float("-inf") else
           "Lowest distance among correct matches: N/A")
-    print(f"Highest distance among incorrect matches: {highest_incorrect:.6f}" if highest_incorrect != float("inf") else
+    summary_lines.append(f"Highest distance among incorrect matches: {highest_incorrect:.6f}" if highest_incorrect != float("inf") else
           "Highest distance among incorrect matches: N/A")
-    print(f"Lowest distance among incorrect matches: {lowest_incorrect:.6f}" if lowest_incorrect != float("inf") else
+    summary_lines.append(f"Lowest distance among incorrect matches: {lowest_incorrect:.6f}" if lowest_incorrect != float("inf") else
           "Lowest distance among incorrect matches: N/A")
+
+    for line in summary_lines:
+        print(line)
+    return summary_lines
 
 
 # ----------------------------
@@ -387,16 +388,25 @@ def main() -> None:
         default=None,
         help="Save results to CSV (default: project_root/data/matches.csv)"
     )
+    parser.add_argument(
+        "--blur",
+        type=float,
+        default=0.0,
+        help="Apply Gaussian blur with given sigma before LBP (default: 0, no blur)"
+    )
+    parser.add_argument(
+        "--ltp",
+        action="store_true",
+        help="Use Local Ternary Pattern instead of LBP (experimental, default: False)"
+    )
     parser.add_argument("--visualize", action="store_true", help="Open interactive visualization of matches")
     parser.add_argument("--X", type=int, default=None, help="Width of centermost region for LBP (optional)")
     parser.add_argument("--Y", type=int, default=None, help="Height of centermost region for LBP (optional)")
     parser.add_argument("--V", action="store_true", help="Print verbose output")
     parser.add_argument("--G", action="store_true", help="Use grayscale image in visualization")
-    parser.add_argument("--B", action="store_true", help="Use gaussian blur image preproceessing")
-
     args = parser.parse_args()
 
-    lbp = LBPFacade(P=args.P, R=args.R, method=args.method)
+    lbp = LBPFacade(P=args.P, R=args.R, method=args.method, use_ltp=args.ltp)
 
     loader = ImageFolderLoader(
         folder=args.folder,
@@ -404,7 +414,7 @@ def main() -> None:
         X=args.X,
         Y=args.Y,
         use_gray_image_for_viz=args.G,
-        use_gaussian_blur=args.B,
+        gaussian_blur=args.blur,
     )
 
     pipeline = Pipeline(
@@ -419,6 +429,11 @@ def main() -> None:
     if args.save_csv:
         save_matches_csv(records, args.save_csv)
         print(f"Saved matches CSV to {args.save_csv}")
+
+
+    summary_lines = None
+    if args.V:
+        summary_lines = print_verbose_report(records)
 
     if args.visualize:
         items_for_viz = []
@@ -436,10 +451,9 @@ def main() -> None:
                 "MATCHED_CATEGORY": r.matched_category,
                 "CORRECT": r.correct,
             })
-        visualize_matches(items_for_viz, metric_name=args.metric)
-
-    if args.V:
-        print_verbose_report(records)
+        # Convert args to a printable dict
+        args_dict = vars(args)
+        visualize_matches(items_for_viz, metric_name=args.metric, args=args_dict, summary_lines=summary_lines)
 
 
 if __name__ == "__main__":

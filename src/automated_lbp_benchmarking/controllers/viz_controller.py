@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
-from PIL import Image
+from PIL import Image, ImageGrab
 
 from ..models.viz_model import MatchItemModel
 from ..views.viz_view import MatchesView
@@ -134,6 +134,20 @@ class MatchVisualizerController:
 
         return models
 
-    def visualize(self, items: Sequence[Any], max_size: int = 300, metric_name: Optional[str] = None) -> None:
+    def visualize(self, items: Sequence[Any], max_size: int = 300, metric_name: Optional[str] = None, save_pdf: bool = True, args: dict = None, summary_lines: list = None) -> None:
+        import os
+        from datetime import datetime
+        from pathlib import Path
+
         models = self.build_models(items, metric_name=metric_name)
         self.view.show(models, max_size=max_size)
+
+        if save_pdf:
+            # Save PDF to results/ with timestamp
+            project_root = Path(__file__).resolve().parents[3]
+            results_dir = project_root / "results"
+            results_dir.mkdir(exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            pdf_path = results_dir / f"matches_{timestamp}.pdf"
+            self.view.save_as_pdf(models, str(pdf_path), max_size=max_size, args=args, summary_lines=summary_lines)
+            print(f"Saved visualization PDF to {pdf_path}")
