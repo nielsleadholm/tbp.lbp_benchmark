@@ -1,0 +1,6 @@
+--P,--R,--method,--metric,--blur,--ltp,--crop-seed,correct_matches,total,pct_correct,highest_correct,lowest_correct,highest_incorrect,lowest_incorrect,csv_file,results_json_file
+8,1,uniform,chi2,0.0,False,1,33,75,44.0,0.00863252107170744,0.0002474182302171108,0.008123157356074016,0.0002759386809196321,exp_8_1_uniform_chi2_0.0_False_1.csv,exp_8_1_uniform_chi2_0.0_False_1_results.json
+8,1,uniform,chi2,0.0,False,42,29,75,38.666666666666664,0.04351371090747841,0.0004465022285624677,0.02714021645811275,0.00045750261709131927,exp_8_1_uniform_chi2_0.0_False_42.csv,exp_8_1_uniform_chi2_0.0_False_42_results.json
+8,1,uniform,chi2,0.0,True,1,33,75,44.0,0.03578821669271578,0.008351617762822257,0.04782531335269084,0.00822535353825953,exp_8_1_uniform_chi2_0.0_True_1.csv,exp_8_1_uniform_chi2_0.0_True_1_results.json
+8,1,uniform,chi2,0.0,True,42,36,75,48.0,0.027137001099583367,0.006998635980181545,0.08358328595047508,0.00882092357083098,exp_8_1_uniform_chi2_0.0_True_42.csv,exp_8_1_uniform_chi2_0.0_True_42_results.json
+8,1,uniform,chi2,1.25,False,1,27,75,36.0,0.005798086829419553,0.0003470346981533265,0.005801202880349951,0.0002488075671729741,exp_8_1_uniform_chi2_1.25_False_1.csv,exp_8_1_uniform_chi2_1.25_False_1_results.json

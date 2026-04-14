@@ -72,22 +72,33 @@ def parse_filename(filename: str) -> dict:
 
 
 def center_crop(arr_2d: np.ndarray, X: int, Y: int) -> np.ndarray:
-    """Crop a 2D array to the centermost X-by-Y region."""
+    """Crop a 2D array to a random X-by-Y region."""
     h, w = arr_2d.shape
     if w < X or h < Y:
         raise ValueError("Image smaller than requested crop")
-    x_start = (w - X) // 2
-    y_start = (h - Y) // 2
+    # Use global _crop_rng if set, else default to center crop
+    rng = globals().get("_crop_rng", None)
+    if rng is not None:
+        x_start = rng.integers(0, w - X + 1)
+        y_start = rng.integers(0, h - Y + 1)
+    else:
+        x_start = (w - X) // 2
+        y_start = (h - Y) // 2
     return arr_2d[y_start:y_start + Y, x_start:x_start + X]
 
 
 def center_crop_pil(im: Image.Image, X: int, Y: int) -> Image.Image:
-    """Center-crop a PIL image to X-by-Y."""
+    """Random-crop a PIL image to X-by-Y."""
     w, h = im.size
     if w < X or h < Y:
         raise ValueError("Image smaller than requested crop")
-    x_start = (w - X) // 2
-    y_start = (h - Y) // 2
+    rng = globals().get("_crop_rng", None)
+    if rng is not None:
+        x_start = rng.integers(0, w - X + 1)
+        y_start = rng.integers(0, h - Y + 1)
+    else:
+        x_start = (w - X) // 2
+        y_start = (h - Y) // 2
     return im.crop((x_start, y_start, x_start + X, y_start + Y))
 
 
@@ -304,9 +315,13 @@ def save_matches_csv(records: Sequence[ImageRecord], out_path: str) -> None:
     results_dir = project_root / "results"
     results_dir.mkdir(exist_ok=True)
 
-    # Build full output path
-    out_path = out_path + "_" + datetime.now().strftime("%Y%m%d_%H%M%S_") + ".csv"
-    output_path = results_dir / out_path
+    # Use the provided out_path as the filename, only add timestamp if not specified
+    if out_path.endswith('.csv'):
+        output_path = results_dir / out_path
+    else:
+        # If not a csv, add timestamp
+        out_path = out_path + "_" + datetime.now().strftime("%Y%m%d_%H%M%S_") + ".csv"
+        output_path = results_dir / out_path
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["Index", "Instance", "Category", "Distance", "Matched_Category", "Matched_Index", "Correct"])
@@ -355,24 +370,35 @@ def print_verbose_report(records: Sequence[ImageRecord]) -> None:
 
     for line in summary_lines:
         print(line)
-    return summary_lines
+
+    # Return a standardized results dict for automation
+    results = {
+        "correct_matches": int(correct_count),
+        "total": int(total),
+        "pct_correct": float(pct),
+        "highest_correct": float(highest_correct) if highest_correct != float("-inf") else None,
+        "lowest_correct": float(lowest_correct) if lowest_correct != float("inf") else None,
+        "highest_incorrect": float(highest_incorrect) if highest_incorrect != float("-inf") else None,
+        "lowest_incorrect": float(lowest_incorrect) if lowest_incorrect != float("inf") else None,
+    }
+    return summary_lines, results
 
 
 # ----------------------------
 # CLI STUFF
 # ----------------------------
 
-def main() -> None:
+def main(return_results: bool = False, cli_args=None):
     parser = argparse.ArgumentParser(description="Load PNGs from folder, parse metadata, compute LBP, match by chi2 NN")
     parser.add_argument("folder", nargs="?", default=".", help="Folder containing .PNG images")
     parser.add_argument("--P", type=int, default=8, help="Number of neighbor points for LBP (default: 8)")
     parser.add_argument("--R", type=float, default=1.0, help="Radius for LBP (default: 1.0)")
     parser.add_argument(
-    "--method",
-    type=str,
-    default="uniform",
-    choices=["default", "ror", "uniform", "var", "ltp"],
-    help="LBP method for skimage.feature.local_binary_pattern (default: 'uniform')",
+        "--method",
+        type=str,
+        default="uniform",
+        choices=["default", "ror", "uniform", "var", "ltp"],
+        help="LBP method for skimage.feature.local_binary_pattern (default: 'uniform')",
     )
     parser.add_argument(
         "--metric",
@@ -404,8 +430,19 @@ def main() -> None:
     parser.add_argument("--Y", type=int, default=None, help="Height of centermost region for LBP (optional)")
     parser.add_argument("--V", action="store_true", help="Print verbose output")
     parser.add_argument("--G", action="store_true", help="Use grayscale image in visualization")
-    args = parser.parse_args()
+    parser.add_argument("--crop-seed", type=int, default=None, help="Seed for random cropping (optional, for reproducibility)")
+    if cli_args is not None:
+        args = parser.parse_args(cli_args)
+    else:
+        args = parser.parse_args()
 
+    # Set up global RNG for cropping if seed is provided
+    global _crop_rng
+    if args.crop_seed is not None:
+        import numpy as np
+        _crop_rng = np.random.default_rng(args.crop_seed)
+    else:
+        _crop_rng = None
     lbp = LBPFacade(P=args.P, R=args.R, method=args.method, use_ltp=args.ltp)
 
     loader = ImageFolderLoader(
@@ -426,14 +463,37 @@ def main() -> None:
 
     records = pipeline.run()
 
-    if args.save_csv:
+    # Suppress file output if running under run_experiments.py (detected by env var)
+    running_experiments = os.environ.get("LBP_EXPERIMENT_MODE") == "1"
+    if args.save_csv and not running_experiments:
         save_matches_csv(records, args.save_csv)
         print(f"Saved matches CSV to {args.save_csv}")
 
 
-    summary_lines = None
-    if args.V:
-        summary_lines = print_verbose_report(records)
+    # Always compute results_json and summary_lines
+    summary_lines, results_json = print_verbose_report(records)
+
+    # Always write a standardized results JSON for automation, with a name matching the CSV if --save-csv is used
+    import json
+    results_path = None
+    project_root = Path(__file__).resolve().parents[2]
+    results_dir = project_root / "results"
+    results_dir.mkdir(exist_ok=True)
+    if args.save_csv:
+        results_path = results_dir / (Path(args.save_csv).stem + "_results.json")
+    else:
+        results_path = results_dir / ("results_" + datetime.now().strftime("%Y%m%d_%H%M%S") + ".json")
+    if not running_experiments:
+        try:
+            print(f"[DEBUG] Attempting to write results JSON to: {results_path.resolve()}")
+            with open(results_path, "w", encoding="utf-8") as f:
+                json.dump(results_json, f, indent=2)
+            print(f"Saved results JSON to {results_path.resolve()}")
+        except Exception as e:
+            print(f"[ERROR] Failed to write results JSON to {results_path.resolve()}: {e}")
+
+    if return_results:
+        return results_json
 
     if args.visualize:
         items_for_viz = []
@@ -453,7 +513,9 @@ def main() -> None:
             })
         # Convert args to a printable dict
         args_dict = vars(args)
-        visualize_matches(items_for_viz, metric_name=args.metric, args=args_dict, summary_lines=summary_lines)
+        # Only save PDF if save-csv is set
+        save_pdf = args.save_csv is not None
+        visualize_matches(items_for_viz, metric_name=args.metric, args=args_dict, summary_lines=summary_lines, save_pdf=save_pdf)
 
 
 if __name__ == "__main__":
