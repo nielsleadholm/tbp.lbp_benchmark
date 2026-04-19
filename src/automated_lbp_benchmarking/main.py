@@ -350,11 +350,14 @@ class NearestNeighborMatcher(Stage):
                     zip(matches, match_distances, match_categories),
                     key=lambda x: x[1],
                 )
+                # If --top is also set, cap the tolerance results to the top N closest
+                if self.top is not None:
+                    sorted_matches = sorted_matches[:self.top]
                 rec.matching_indices = [m[0] for m in sorted_matches]
                 rec.matching_distances = [m[1] for m in sorted_matches]
                 rec.matching_categories = [m[2] for m in sorted_matches]
-            # Handle top-n matches
-            elif self.top is not None and all_distances:
+            # Handle top-n matches only when tolerance is NOT active
+            elif self.top is not None and self.tolerance is None and all_distances:
                 sorted_top = sorted(all_distances, key=lambda x: x[1])[:self.top]
                 rec.matching_indices = [m[0] for m in sorted_top]
                 rec.matching_distances = [m[1] for m in sorted_top]

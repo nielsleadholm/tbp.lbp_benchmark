@@ -186,6 +186,9 @@ class MatchVisualizerController:
         from pathlib import Path
 
         models = self.build_models(items, metric_name=metric_name)
+        # When tolerance mode is active, hide records that had no matches within the threshold
+        if args and args.get("tolerance") is not None:
+            models = [m for m in models if m.matched_images is not None and len(m.matched_images) > 0]
         self.view.show(models, max_size=max_size)
 
         if save_pdf:
