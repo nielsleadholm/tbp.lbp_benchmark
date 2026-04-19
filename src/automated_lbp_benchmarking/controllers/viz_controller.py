@@ -75,12 +75,33 @@ class MatchVisualizerController:
             if isinstance(it, dict):
                 original_image = it.get("IMAGE")
                 matched_idx = it.get("MATCHED_INDEX")
+                matched_indices = it.get("MATCHED_INDICES") or it.get("matching_indices")
+                matched_distances = it.get("MATCHED_DISTANCES") or it.get("matching_distances")
 
                 if isinstance(matched_idx, int) and (matched_idx < 0 or matched_idx >= len(items)):
                     matched_idx = None
 
                 matched_item = items[matched_idx] if isinstance(matched_idx, int) else None
                 matched_image = matched_item.get("IMAGE") if isinstance(matched_item, dict) else None
+
+                matched_images: List[Image.Image] = []
+                matched_meta_list: List[Dict[str, str]] = []
+                matched_distance_list: List[Any] = []
+
+                if isinstance(matched_indices, list):
+                    for match_i, match_idx in enumerate(matched_indices):
+                        if not isinstance(match_idx, int) or match_idx < 0 or match_idx >= len(items):
+                            continue
+                        match_item = items[match_idx]
+                        if isinstance(match_item, dict):
+                            image = match_item.get("IMAGE")
+                            if isinstance(image, Image.Image):
+                                matched_images.append(image)
+                            matched_meta_list.append(_extract_string_meta_from_mapping(match_item))
+                            if isinstance(matched_distances, list) and match_i < len(matched_distances):
+                                matched_distance_list.append(matched_distances[match_i])
+                            else:
+                                matched_distance_list.append(_extract_distance_from_mapping(match_item))
 
                 original_meta = _extract_string_meta_from_mapping(it)
                 matched_meta = _extract_string_meta_from_mapping(matched_item) if isinstance(matched_item, dict) else {}
@@ -94,9 +115,12 @@ class MatchVisualizerController:
                         index=idx,
                         original_image=original_image if isinstance(original_image, Image.Image) else None,
                         matched_image=matched_image if isinstance(matched_image, Image.Image) else None,
+                        matched_images=matched_images or None,
                         original_meta=original_meta,
                         matched_meta=matched_meta,
+                        matched_meta_list=matched_meta_list or None,
                         distance=dist,
+                        matched_distances=matched_distance_list or None,
                         metric_name=display_metric,
                     )
                 )
@@ -106,11 +130,32 @@ class MatchVisualizerController:
                 original_image = getattr(it, "image", None)
 
                 matched_idx = getattr(it, "matched_index", None)
+                matched_indices = getattr(it, "matching_indices", None)
+                matched_distances = getattr(it, "matching_distances", None)
+
                 if isinstance(matched_idx, int) and (matched_idx < 0 or matched_idx >= len(items)):
                     matched_idx = None
 
                 matched_item = items[matched_idx] if isinstance(matched_idx, int) else None
                 matched_image = getattr(matched_item, "image", None) if matched_item is not None else None
+
+                matched_images: List[Image.Image] = []
+                matched_meta_list: List[Dict[str, str]] = []
+                matched_distance_list: List[Any] = []
+
+                if isinstance(matched_indices, list):
+                    for match_i, match_idx in enumerate(matched_indices):
+                        if not isinstance(match_idx, int) or match_idx < 0 or match_idx >= len(items):
+                            continue
+                        match_item = items[match_idx]
+                        image = getattr(match_item, "image", None)
+                        if isinstance(image, Image.Image):
+                            matched_images.append(image)
+                        matched_meta_list.append(_extract_string_meta_from_obj(match_item))
+                        if isinstance(matched_distances, list) and match_i < len(matched_distances):
+                            matched_distance_list.append(matched_distances[match_i])
+                        else:
+                            matched_distance_list.append(getattr(match_item, "nn_distance", None))
 
                 original_meta = _extract_string_meta_from_obj(it)
                 matched_meta = _extract_string_meta_from_obj(matched_item) if matched_item is not None else {}
@@ -122,15 +167,16 @@ class MatchVisualizerController:
                         index=idx,
                         original_image=original_image if isinstance(original_image, Image.Image) else None,
                         matched_image=matched_image if isinstance(matched_image, Image.Image) else None,
+                        matched_images=matched_images or None,
                         original_meta=original_meta,
                         matched_meta=matched_meta,
+                        matched_meta_list=matched_meta_list or None,
                         distance=dist,
+                        matched_distances=matched_distance_list or None,
                         metric_name=default_metric_display,
                     )
                 )
                 continue
-
-            continue
 
         return models
 

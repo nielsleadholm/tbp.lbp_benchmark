@@ -297,13 +297,13 @@ class NearestNeighborMatcher(Stage):
     """annotates each record with nearest-neighbor match info."""
     distance_fn: Callable[[np.ndarray, np.ndarray], float] = chi2_distance
     metric_name: str = "chi2"
+    tolerance: Optional[float] = None
+    top: Optional[int] = None
 
     def __call__(self, records: Sequence[ImageRecord]) -> Sequence[ImageRecord]:
         if not records:
             return records
 
-        # Strategy selection: allow resolving by name (preferred) while keeping a callable hook.
-        # If metric_name is set, it overrides distance_fn.
         distance_fn = self.distance_fn
         if self.metric_name:
             distance_fn = get_distance_metric(self.metric_name)
@@ -317,11 +317,18 @@ class NearestNeighborMatcher(Stage):
                 rec.nn_distance = None
                 rec.matched_category = None
                 rec.matched_index = None
+                rec.matching_indices = []
+                rec.matching_distances = []
+                rec.matching_categories = []
                 rec.correct = False
                 continue
 
             min_val = float("inf")
             min_idx = -1
+            matches: List[int] = []
+            match_distances: List[float] = []
+            match_categories: List[str] = []
+            all_distances: List[tuple] = []  # For --top feature
 
             for j in range(n):
                 if i == j:
@@ -330,6 +337,32 @@ class NearestNeighborMatcher(Stage):
                 if d < min_val:
                     min_val = d
                     min_idx = j
+                if self.tolerance is not None and d < self.tolerance:
+                    matches.append(j)
+                    match_distances.append(float(d))
+                    match_categories.append(records[j].category)
+                if self.top is not None:
+                    all_distances.append((j, float(d), records[j].category))
+
+            # Handle tolerance-based matches
+            if matches:
+                sorted_matches = sorted(
+                    zip(matches, match_distances, match_categories),
+                    key=lambda x: x[1],
+                )
+                rec.matching_indices = [m[0] for m in sorted_matches]
+                rec.matching_distances = [m[1] for m in sorted_matches]
+                rec.matching_categories = [m[2] for m in sorted_matches]
+            # Handle top-n matches
+            elif self.top is not None and all_distances:
+                sorted_top = sorted(all_distances, key=lambda x: x[1])[:self.top]
+                rec.matching_indices = [m[0] for m in sorted_top]
+                rec.matching_distances = [m[1] for m in sorted_top]
+                rec.matching_categories = [m[2] for m in sorted_top]
+            else:
+                rec.matching_indices = []
+                rec.matching_distances = []
+                rec.matching_categories = []
 
             rec.nn_distance = None if min_idx == -1 else float(min_val)
             rec.matched_index = None if min_idx == -1 else int(min_idx)
@@ -511,6 +544,8 @@ def main(return_results: bool = False, cli_args=None):
     parser.add_argument("--simulate-illumination", action="store_true", help="Simulate illumination changes by adjusting brightness and contrast")
     parser.add_argument("--brightness", type=float, default=1.0, help="Brightness factor for illumination simulation (default: 1.0, no change)")
     parser.add_argument("--contrast", type=float, default=1.0, help="Contrast factor for illumination simulation (default: 1.0, no change)")
+    parser.add_argument("--tolerance", type=float, default=None, help="Distance tolerance for storing and visualizing multiple matches (default: none)")
+    parser.add_argument("--top", type=int, default=None, help="Show top n closest matches (default: none)")
     parser.add_argument("--simulate-noise", action="store_true", help="Add Gaussian noise to the images")
     if cli_args is not None:
         args = parser.parse_args(cli_args)
@@ -543,7 +578,7 @@ def main(return_results: bool = False, cli_args=None):
     pipeline = Pipeline(
         source=lambda: loader(()),
         stages=[
-            NearestNeighborMatcher(metric_name=args.metric),
+            NearestNeighborMatcher(metric_name=args.metric, tolerance=args.tolerance, top=args.top),
         ],
     )
 
@@ -595,6 +630,9 @@ def main(return_results: bool = False, cli_args=None):
                 "INDEX": r.index,
                 "MATCHED_INDEX": r.matched_index,
                 "MATCHED_CATEGORY": r.matched_category,
+                "MATCHED_INDICES": r.matching_indices,
+                "MATCHED_DISTANCES": r.matching_distances,
+                "MATCHED_CATEGORIES": r.matching_categories,
                 "CORRECT": r.correct,
             })
         # Convert args to a printable dict
