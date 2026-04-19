@@ -4,6 +4,7 @@ import argparse
 import csv
 import os
 import pdb
+import traceback
 
 from dataclasses import dataclass, field
 from typing import Callable, Iterable, List, Optional, Sequence
@@ -54,7 +55,7 @@ def parse_filename(filename: str) -> dict:
     """
     base = os.path.basename(filename)
     name, ext = os.path.splitext(base)
-    if ext.lower() != ".png":
+    if ext.lower() not in [".png", ".jpg"]:
         raise ValueError("Not a PNG filename")
 
     parts = name.split("_")
@@ -73,8 +74,8 @@ def parse_filename(filename: str) -> dict:
 def center_crop(arr_2d: np.ndarray, X: int, Y: int) -> np.ndarray:
     """Crop a 2D array to a random X-by-Y region."""
     h, w = arr_2d.shape
-    if w < X or h < Y:
-        raise ValueError("Image smaller than requested crop")
+    X = min(X, w)
+    Y = min(Y, h)
     # Use global _crop_rng if set, else default to center crop
     rng = globals().get("_crop_rng", None)
     if rng is not None:
@@ -89,8 +90,8 @@ def center_crop(arr_2d: np.ndarray, X: int, Y: int) -> np.ndarray:
 def center_crop_pil(im: Image.Image, X: int, Y: int) -> Image.Image:
     """Random-crop a PIL image to X-by-Y."""
     w, h = im.size
-    if w < X or h < Y:
-        raise ValueError("Image smaller than requested crop")
+    X = min(X, w)
+    Y = min(Y, h)
     rng = globals().get("_crop_rng", None)
     if rng is not None:
         x_start = rng.integers(0, w - X + 1)
@@ -180,6 +181,11 @@ class ImageFolderLoader:
     use_gray_image_for_viz: bool = False
     gaussian_blur: float = 0.0
     hist_smooth: float = 0.0
+    simulate_illumination: bool = False
+    brightness: float = 1.0
+    contrast: float = 1.0
+    simulate_noise: bool = False
+    noise_sigma: float = 10.0
 
     def __call__(self, _records: Sequence[ImageRecord] = ()) -> Sequence[ImageRecord]:
         # First pass: load images and compute raw LBP arrays
@@ -187,8 +193,8 @@ class ImageFolderLoader:
         max_code = 0
 
         for fname in sorted(os.listdir(self.folder)):
-            if not fname.lower().endswith(".png"):
-                continue
+            # if not fname.lower().endswith(".png") or not fname.lower().endswith(".jpg"):
+            #     continue
 
             path = os.path.join(self.folder, fname)
             try:
@@ -212,10 +218,52 @@ class ImageFolderLoader:
                         viz_img = center_crop_pil(viz_img, self.X, self.Y)
                         if self.use_gray_image_for_viz:
                             viz_img = viz_img.convert("L")
+                    
+                    # Prepare transformations if needed
+                    brightness = self.brightness if self.simulate_illumination else 1.0
+                    contrast = self.contrast if self.simulate_illumination else 1.0
+                    noise = None
+                    if self.simulate_noise:
+                        rng = globals().get("_crop_rng") or np.random.default_rng()
+                        noise = rng.normal(0, self.noise_sigma, gray_arr.shape)
+                    
+                    # Apply illumination to gray_arr
+                    if self.simulate_illumination:
+                        gray_arr = (gray_arr - 128) * contrast + 128 * brightness
+                        gray_arr = np.clip(gray_arr, 0, 255)
+                        gray_arr = gray_arr.astype(np.uint8)
+                    
+                    # Apply noise to gray_arr
+                    if self.simulate_noise:
+                        gray_arr = gray_arr.astype(np.float32) + noise
+                        gray_arr = np.clip(gray_arr, 0, 255)
+                        gray_arr = gray_arr.astype(np.uint8)
+                    
+                    # Apply same transformations to viz_img
+                    if self.simulate_illumination or self.simulate_noise:
+                        viz_arr = np.array(viz_img, dtype=np.float32)
+                        if self.simulate_illumination:
+                            viz_arr = (viz_arr - 128) * contrast + 128 * brightness
+                            viz_arr = np.clip(viz_arr, 0, 255)
+                        if self.simulate_noise:
+                            if viz_arr.ndim == 3:
+                                noise_viz = noise[:, :, np.newaxis]  # (h, w, 1) to broadcast to (h, w, 3)
+                            else:
+                                noise_viz = noise
+                            viz_arr = viz_arr + noise_viz
+                            viz_arr = np.clip(viz_arr, 0, 255)
+                        viz_arr = viz_arr.astype(np.uint8)
+                        if viz_arr.ndim == 3:
+                            viz_img = Image.fromarray(viz_arr, mode='RGB')
+                        else:
+                            viz_img = Image.fromarray(viz_arr, mode='L')
+                    
                     if self.gaussian_blur > 0.0:
-                        gray_arr = gaussian_filter(gray_arr, sigma=self.gaussian_blur)
+                        gray_arr = gaussian_filter(gray_arr.astype(np.float32), sigma=self.gaussian_blur).astype(np.uint8)
 
-            except Exception:
+            except Exception as e:
+                print(f"Failed to process {path} due to {e}, skipping.")
+                traceback.print_exc()
                 continue
 
             lbp_codes = self.lbp(gray_arr)
@@ -454,6 +502,16 @@ def main(return_results: bool = False, cli_args=None):
         default=0.0,
         help="Additive smoothing value for LBP histogram bins (default: 0.0, no smoothing)"
     )
+    parser.add_argument(
+        "--noise-sigma",
+        type=float,
+        default=10.0,
+        help="Standard deviation for Gaussian noise when --simulate-noise is enabled (default: 10.0)"
+    )
+    parser.add_argument("--simulate-illumination", action="store_true", help="Simulate illumination changes by adjusting brightness and contrast")
+    parser.add_argument("--brightness", type=float, default=1.0, help="Brightness factor for illumination simulation (default: 1.0, no change)")
+    parser.add_argument("--contrast", type=float, default=1.0, help="Contrast factor for illumination simulation (default: 1.0, no change)")
+    parser.add_argument("--simulate-noise", action="store_true", help="Add Gaussian noise to the images")
     if cli_args is not None:
         args = parser.parse_args(cli_args)
     else:
@@ -467,7 +525,6 @@ def main(return_results: bool = False, cli_args=None):
     else:
         _crop_rng = None
     lbp = LBPFacade(P=args.P, R=args.R, method=args.method, ltp_threshold=args.ltp_threshold)
-
     loader = ImageFolderLoader(
         folder=args.folder,
         lbp=lbp,
@@ -476,6 +533,11 @@ def main(return_results: bool = False, cli_args=None):
         use_gray_image_for_viz=args.G,
         gaussian_blur=args.blur,
         hist_smooth=args.hist_smooth,
+        simulate_illumination=args.simulate_illumination,
+        brightness=args.brightness,
+        contrast=args.contrast,
+        simulate_noise=args.simulate_noise,
+        noise_sigma=args.noise_sigma,
     )
 
     pipeline = Pipeline(
