@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import tkinter as tk
@@ -246,16 +245,24 @@ class MatchesView:
             print(f"Warning: Could not save PDF: {e}")
 
     def show(self, models: Iterable[MatchItemModel], max_size: int = 300) -> None:
-        models = list(models)  # No cap for runtime visualization
+        models = list(models)
         if not models:
             print("No items to visualize")
             return
 
+        PAGE_SIZE = 50
+        total_pages = (len(models) + PAGE_SIZE - 1) // PAGE_SIZE
+        current_page = [0]  # Use list for mutability in closures
+
         root = tk.Tk()
         root.title(self._title)
 
-        canvas = tk.Canvas(root)
-        scrollbar = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
+        main_frame = ttk.Frame(root)
+        main_frame.pack(fill="both", expand=True)
+
+        # Canvas and scrollable frame for results
+        canvas = tk.Canvas(main_frame)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
         scrollable_frame = ttk.Frame(canvas)
 
         scrollable_frame.bind(
@@ -265,6 +272,14 @@ class MatchesView:
 
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Pagination controls (top)
+        nav_frame_top = ttk.Frame(main_frame)
+        nav_frame_top.pack(fill="x", padx=8, pady=4)
+
+        # Pagination controls (bottom)
+        nav_frame_bottom = ttk.Frame(main_frame)
+        nav_frame_bottom.pack(fill="x", padx=8, pady=4, side="bottom")
 
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
@@ -279,109 +294,141 @@ class MatchesView:
             im.thumbnail((max_size, max_size), Image.LANCZOS)
             return ImageTk.PhotoImage(im)
 
-        for m in models:
-            matched_images = m.matched_images if m.matched_images is not None else ([m.matched_image] if m.matched_image else [])
-            has_tolerance_matches = m.matched_images is not None and len(m.matched_images) > 0
-            
-            frame = ttk.Frame(scrollable_frame, padding=6, relief="ridge")
-            frame.pack(fill="x", padx=6, pady=6)
+        def clear_frame(frame):
+            for widget in frame.winfo_children():
+                widget.destroy()
 
-            if has_tolerance_matches:
-                # Multi-match layout (tolerance mode): show in grid with wrapping
-                left_photo = make_thumb(m.original_image)
-                photo_refs.append(left_photo)
+        def render_page():
+            clear_frame(scrollable_frame)
+            photo_refs.clear()
+            start = current_page[0] * PAGE_SIZE
+            end = min(start + PAGE_SIZE, len(models))
+            for m in models[start:end]:
+                matched_images = m.matched_images if m.matched_images is not None else ([m.matched_image] if m.matched_image else [])
+                has_tolerance_matches = m.matched_images is not None and len(m.matched_images) > 0
 
-                left_label = ttk.Label(frame)
-                if left_photo:
-                    left_label.configure(image=left_photo)
-                else:
-                    left_label.configure(text="(no image)")
-                left_label.grid(row=0, column=0, padx=8, pady=4, rowspan=2)
+                frame = ttk.Frame(scrollable_frame, padding=6, relief="ridge")
+                frame.pack(fill="x", padx=6, pady=6)
 
-                # Original metadata
-                orig_meta_text = "\n".join(f"{k}: {v}" for k, v in m.original_meta.items())
-                ttk.Label(frame, text=orig_meta_text, justify="left", anchor="w").grid(
-                    row=0, column=1, sticky="w", padx=4
-                )
+                if has_tolerance_matches:
+                    left_photo = make_thumb(m.original_image)
+                    photo_refs.append(left_photo)
 
-                # Matched images in a grid with wrapping (max 3 per row)
-                matched_frame = ttk.Frame(frame)
-                matched_frame.grid(row=1, column=1, sticky="w", padx=4, pady=4)
-                
-                images_per_row = 3
-                for idx, match_img in enumerate(matched_images):
-                    match_thumb_photo = make_thumb(match_img) if isinstance(match_img, Image.Image) else None
-                    photo_refs.append(match_thumb_photo)
-                    
-                    row_idx = idx // images_per_row
-                    col_idx = idx % images_per_row
-                    
-                    col_frame = ttk.Frame(matched_frame)
-                    col_frame.grid(row=row_idx, column=col_idx, padx=2, pady=2)
-                    
-                    match_label = ttk.Label(col_frame)
-                    if match_thumb_photo:
-                        match_label.configure(image=match_thumb_photo)
+                    left_label = ttk.Label(frame)
+                    if left_photo:
+                        left_label.configure(image=left_photo)
                     else:
-                        match_label.configure(text="(no image)")
-                    match_label.pack()
-                    
-                    # Distance underneath
-                    dist_str = "(no distance)"
-                    if m.matched_distances and idx < len(m.matched_distances):
-                        dist_val = m.matched_distances[idx]
-                        if isinstance(dist_val, (int, float)):
-                            dist_str = f"{float(dist_val):.6f}"
+                        left_label.configure(text="(no image)")
+                    left_label.grid(row=0, column=0, padx=8, pady=4, rowspan=2)
+
+                    orig_meta_text = "\n".join(f"{k}: {v}" for k, v in m.original_meta.items())
+                    ttk.Label(frame, text=orig_meta_text, justify="left", anchor="w").grid(
+                        row=0, column=1, sticky="w", padx=4
+                    )
+
+                    matched_frame = ttk.Frame(frame)
+                    matched_frame.grid(row=1, column=1, sticky="w", padx=4, pady=4)
+
+                    images_per_row = 3
+                    for idx, match_img in enumerate(matched_images):
+                        match_thumb_photo = make_thumb(match_img) if isinstance(match_img, Image.Image) else None
+                        photo_refs.append(match_thumb_photo)
+
+                        row_idx = idx // images_per_row
+                        col_idx = idx % images_per_row
+
+                        col_frame = ttk.Frame(matched_frame)
+                        col_frame.grid(row=row_idx, column=col_idx, padx=2, pady=2)
+
+                        match_label = ttk.Label(col_frame)
+                        if match_thumb_photo:
+                            match_label.configure(image=match_thumb_photo)
                         else:
-                            dist_str = str(dist_val)
-                    ttk.Label(col_frame, text=dist_str, font=("TkDefaultFont", 9)).pack()
-            else:
-                # Single match layout (original mode): side by side
-                left_photo = make_thumb(m.original_image)
-                right_photo = make_thumb(m.matched_image)
-                photo_refs.append((left_photo, right_photo))
+                            match_label.configure(text="(no image)")
+                        match_label.pack()
 
-                left_label = ttk.Label(frame)
-                if left_photo:
-                    left_label.configure(image=left_photo)
+                        dist_str = "(no distance)"
+                        if m.matched_distances and idx < len(m.matched_distances):
+                            dist_val = m.matched_distances[idx]
+                            if isinstance(dist_val, (int, float)):
+                                dist_str = f"{float(dist_val):.6f}"
+                            else:
+                                dist_str = str(dist_val)
+                        ttk.Label(col_frame, text=dist_str, font=("TkDefaultFont", 9)).pack()
                 else:
-                    left_label.configure(text="(no image)")
-                left_label.grid(row=0, column=0, rowspan=2, padx=8)
+                    left_photo = make_thumb(m.original_image)
+                    right_photo = make_thumb(m.matched_image)
+                    photo_refs.append((left_photo, right_photo))
 
-                right_label = ttk.Label(frame)
-                if right_photo:
-                    right_label.configure(image=right_photo)
-                else:
-                    right_label.configure(text="(no match)")
-                right_label.grid(row=0, column=1, rowspan=2, padx=8)
+                    left_label = ttk.Label(frame)
+                    if left_photo:
+                        left_label.configure(image=left_photo)
+                    else:
+                        left_label.configure(text="(no image)")
+                    left_label.grid(row=0, column=0, rowspan=2, padx=8)
 
-                info_lines = []
-                info_lines.append(f"Index: {m.index}")
-                info_lines.append("-- Original --")
-                for k, v in m.original_meta.items():
-                    info_lines.append(f"{k}: {v}")
-                info_lines.append("")
-                info_lines.append("-- Matched --")
-                if m.matched_meta:
-                    for k, v in m.matched_meta.items():
+                    right_label = ttk.Label(frame)
+                    if right_photo:
+                        right_label.configure(image=right_photo)
+                    else:
+                        right_label.configure(text="(no match)")
+                    right_label.grid(row=0, column=1, rowspan=2, padx=8)
+
+                    info_lines = []
+                    info_lines.append(f"Index: {m.index}")
+                    info_lines.append("-- Original --")
+                    for k, v in m.original_meta.items():
                         info_lines.append(f"{k}: {v}")
-                else:
-                    info_lines.append("(no match)")
-                info_lines.append("")
-                info_lines.append(f"Distance Metric: {m.metric_name}")
+                    info_lines.append("")
+                    info_lines.append("-- Matched --")
+                    if m.matched_meta:
+                        for k, v in m.matched_meta.items():
+                            info_lines.append(f"{k}: {v}")
+                    else:
+                        info_lines.append("(no match)")
+                    info_lines.append("")
+                    info_lines.append(f"Distance Metric: {m.metric_name}")
 
-                if m.distance is None:
-                    dist_line = "Distance: None"
-                elif isinstance(m.distance, (int, float)):
-                    dist_line = f"Distance: {float(m.distance):.6f}"
-                else:
-                    dist_line = f"Distance: {m.distance}"
-                info_lines.append(dist_line)
+                    if m.distance is None:
+                        dist_line = "Distance: None"
+                    elif isinstance(m.distance, (int, float)):
+                        dist_line = f"Distance: {float(m.distance):.6f}"
+                    else:
+                        dist_line = f"Distance: {m.distance}"
+                    info_lines.append(dist_line)
 
-                info_text = "\n".join(info_lines)
-                ttk.Label(frame, text=info_text, justify="left", anchor="w", wraplength=600).grid(
-                    row=0, column=2, sticky="w"
-                )
+                    info_text = "\n".join(info_lines)
+                    ttk.Label(frame, text=info_text, justify="left", anchor="w", wraplength=600).grid(
+                        row=0, column=2, sticky="w"
+                    )
 
+        def update_nav_buttons():
+            for nav_frame in (nav_frame_top, nav_frame_bottom):
+                clear_frame(nav_frame)
+                prev_btn = ttk.Button(nav_frame, text="Previous", command=go_prev)
+                next_btn = ttk.Button(nav_frame, text="Next", command=go_next)
+                page_label = ttk.Label(nav_frame, text=f"Page {current_page[0]+1} of {total_pages}")
+                prev_btn.pack(side="left", padx=4)
+                page_label.pack(side="left", padx=8)
+                next_btn.pack(side="left", padx=4)
+                if current_page[0] == 0:
+                    prev_btn.state(["disabled"])
+                if current_page[0] >= total_pages - 1:
+                    next_btn.state(["disabled"])
+
+        def go_prev():
+            if current_page[0] > 0:
+                current_page[0] -= 1
+                render_page()
+                update_nav_buttons()
+
+        def go_next():
+            if current_page[0] < total_pages - 1:
+                current_page[0] += 1
+                render_page()
+                update_nav_buttons()
+
+        render_page()
+        update_nav_buttons()
         root.mainloop()
-        
+
