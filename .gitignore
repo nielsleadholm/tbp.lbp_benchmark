@@ -33,4 +33,6 @@ htmlcov/
 
 # Logs
 *.log
-LBP_Test_Images/Swatches/DTD_TextureImages/
+
+# Results
+results/
