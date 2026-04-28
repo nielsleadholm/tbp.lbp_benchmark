@@ -34,11 +34,12 @@ class ImageRecord:
     lbp_hist: np.ndarray  # normalized histogram feature vector (float64)
 
     # Matching related info
-    index: Optional[int] = None
-    matched_index: Optional[int] = None
-    matched_category: Optional[str] = None
-    nn_distance: Optional[float] = None
-    correct: Optional[bool] = None
+    # index: Optional[int] = None
+    # matched_index: Optional[int] = None
+    # matched_category: Optional[str] = None
+    # nn_distance: Optional[float] = None
+    # correct: Optional[bool] = None
+    match_records: List[MatchRecord] = field(default_factory=list)  # For storing multiple matches if tolerance/top is used
 
 
 # ----------------------------
@@ -324,18 +325,25 @@ class ImageFolderLoaderDual:
 
         return raw_records, processed_records
 
-
 @dataclass
+class MatchRecord:
+    matched_image: Image.Image = None
+    matched_index: Optional[int] = None
+    matched_category: Optional[str] = None
+    nn_distance: Optional[float] = None
+    correct: Optional[bool] = None
 
 # Matcher that matches processed records against raw records
 @dataclass
 class ProcessedToRawMatcher(Stage):
     distance_fn: Callable[[np.ndarray, np.ndarray], float] = chi2_distance
     metric_name: str = "chi2"
-    tolerance: Optional[float] = None
-    top: Optional[int] = None
+    tolerance: Optional[float] = 1
+    top: Optional[int] = 1
 
     def __call__(self, processed_records: Sequence[ImageRecord], raw_records: Sequence[ImageRecord]) -> Sequence[ImageRecord]:
+        if self.tolerance is None:
+            self.tolerance = 1
         if not processed_records or not raw_records:
             return processed_records
 
@@ -344,54 +352,36 @@ class ProcessedToRawMatcher(Stage):
             distance_fn = get_distance_metric(self.metric_name)
 
         raw_hists = [np.asarray(r.lbp_hist, dtype=np.float64) for r in raw_records]
-        n = len(raw_hists)
+        num_raw_records = len(raw_hists)
 
-        for i, rec in enumerate(processed_records):
-            rec.index = i
+        for record_index, proc_record in enumerate(processed_records):
+            proc_record.index = record_index
+            match_records: List[MatchRecord] = []
+            visited = []
             min_val = float("inf")
             min_idx = -1
-            matches: List[int] = []
-            match_distances: List[float] = []
-            match_categories: List[str] = []
-            all_distances: List[tuple] = []
 
-            for j in range(n):
-                d = distance_fn(np.asarray(rec.lbp_hist, dtype=np.float64), raw_hists[j])
-                if d < min_val:
-                    min_val = d
-                    min_idx = j
-                if self.tolerance is not None and d < self.tolerance:
-                    matches.append(j)
-                    match_distances.append(float(d))
-                    match_categories.append(raw_records[j].category)
-                if self.top is not None:
-                    all_distances.append((j, float(d), raw_records[j].category))
-
-            if matches:
-                sorted_matches = sorted(
-                    zip(matches, match_distances, match_categories),
-                    key=lambda x: x[1],
-                )
-                if self.top is not None:
-                    sorted_matches = sorted_matches[:self.top]
-                rec.matching_indices = [m[0] for m in sorted_matches]
-                rec.matching_distances = [m[1] for m in sorted_matches]
-                rec.matching_categories = [m[2] for m in sorted_matches]
-            elif self.top is not None and self.tolerance is None and all_distances:
-                sorted_top = sorted(all_distances, key=lambda x: x[1])[:self.top]
-                rec.matching_indices = [m[0] for m in sorted_top]
-                rec.matching_distances = [m[1] for m in sorted_top]
-                rec.matching_categories = [m[2] for m in sorted_top]
-            else:
-                rec.matching_indices = []
-                rec.matching_distances = []
-                rec.matching_categories = []
-
-            rec.nn_distance = None if min_idx == -1 else float(min_val)
-            rec.matched_index = None if min_idx == -1 else int(min_idx)
-            rec.matched_category = None if min_idx == -1 else raw_records[min_idx].category
-            rec.correct = False if min_idx == -1 else (rec.category == raw_records[min_idx].category)
-        
+            for top_n_match_index in range(self.top):
+                for raw_record_index in range(num_raw_records):
+                    if raw_record_index in visited:
+                        continue
+                    distance_between_feature_vectors = distance_fn(np.asarray(proc_record.lbp_hist, dtype=np.float64), raw_hists[raw_record_index])
+                    if distance_between_feature_vectors < min_val and distance_between_feature_vectors <= self.tolerance:
+                        min_val = distance_between_feature_vectors
+                        min_idx = raw_record_index
+                correct = (raw_records[min_idx].category == proc_record.category)
+                matched_image = raw_records[min_idx].image if hasattr(raw_records[min_idx], "image") else None
+                new_match = MatchRecord(
+                    matched_index=min_idx,
+                    matched_category=raw_records[min_idx].category,
+                    nn_distance=min_val,
+                    correct=correct,
+                    matched_image=matched_image)
+                visited.append(min_idx)
+                match_records.append(new_match)
+                min_val = float("inf")
+                min_idx = -1
+            proc_record.match_records = match_records
         return processed_records
 
 
