@@ -19,6 +19,7 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
+from reportlab.lib.enums import TA_LEFT
 
 from .image_data_containers import ImageRecord, MatchRecord
 
@@ -208,6 +209,53 @@ def _build_matches_table(
 
     return matches_table
 
+def build_summary_page(stats, config, styles):
+    elements = []
+
+    title_style = styles["Title"]
+
+    body_style = ParagraphStyle(
+        "Body",
+        parent=styles["Normal"],
+        fontName="Courier",
+        fontSize=9,
+        leading=12,
+        alignment=TA_LEFT,
+    )
+
+    elements.append(Paragraph("Match Statistics Summary", title_style))
+    elements.append(Spacer(1, 12))
+
+    # Stats block
+    stats_text = f"""
+    Total Matches: {stats.total_matches}<br/>
+    Total Correct: {stats.total_correct}<br/>
+    Total Incorrect: {stats.total_incorrect}<br/>
+    Percent Correct: {stats.percent_correct}<br/><br/>
+
+    Highest Correct Distance: {stats.highest_correct}<br/>
+    Lowest Correct Distance: {stats.lowest_correct}<br/>
+    Average Correct Distance: {stats.average_correct}<br/><br/>
+
+    Highest Incorrect Distance: {stats.highest_incorrect}<br/>
+    Lowest Incorrect Distance: {stats.lowest_incorrect}<br/>
+    Average Incorrect Distance: {stats.average_incorrect}
+    """
+
+    elements.append(Paragraph(stats_text, body_style))
+    elements.append(Spacer(1, 20))
+
+    # Config block (pretty printed)
+    import pprint
+    config_str = pprint.pformat(config, indent=2, width=80)
+
+    config_text = f"<b>Configuration:</b><br/><br/><font name='Courier'>{config_str}</font>"
+
+    elements.append(Paragraph(config_text, body_style))
+
+    elements.append(PageBreak())
+
+    return elements
 
 def _build_image_record_row(
     image_record: ImageRecord,
@@ -259,6 +307,8 @@ def _build_image_record_row(
 def create_image_record_match_pdf(
     image_records: Sequence[ImageRecord],
     output_path: str | Path = "image_record_matches.pdf",
+    stats=None,
+    config=None,
     records_per_page: int = 8,
     page_size=landscape(letter),
     main_image_size: tuple[int, int] = (95, 95),
@@ -308,6 +358,7 @@ def create_image_record_match_pdf(
 
     base_styles = getSampleStyleSheet()
     styles = {
+        "Normal": base_styles["Normal"],
         "Small": ParagraphStyle(
             "Small",
             parent=base_styles["Normal"],
@@ -334,6 +385,7 @@ def create_image_record_match_pdf(
     effective_match_card_width = min(match_card_width, max_match_width)
 
     elements = []
+    elements.extend(build_summary_page(stats, config, styles))
 
     total_records = len(image_records)
     for page_start in range(0, total_records, records_per_page):

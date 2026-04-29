@@ -75,73 +75,17 @@ def main(return_results, cli_args=None) -> Optional[dict]:
     top_k = config_dict["matching"]["top"]
     matcher = ProcessedToRawMatcher(metric_name=distance_metric, tolerance=match_tolerance, top=top_k)
     processed_matched_records = matcher(working_image_records, raw_image_records)
-
+    stats = compute_match_distance_stats(processed_matched_records)
+    print(stats)
     create_image_record_match_pdf(
         image_records=processed_matched_records,
         output_path="image_record_matches.pdf",
+        stats=stats,
+        config=config_dict,
         records_per_page=5,
         matches_per_row=top_k,
     )
     visualize_image_records(processed_matched_records, 50)
-    stats = compute_match_distance_stats(processed_matched_records)
-    print(stats)
-    # if config_dict.get["output"]["save_csv"]:
-
-
-    # Always compute results_json and summary_lines
-    summary_lines, results_json = print_verbose_report(records)
-
-    # Always write a standardized results JSON for automation, with a name matching the CSV if --save-csv is used
-    import json
-    results_path = None
-    project_root = Path(__file__).resolve().parents[2]
-    results_dir = project_root / "results"
-    results_dir.mkdir(exist_ok=True)
-    if args.save_csv:
-        results_path = results_dir / (Path(args.save_csv).stem + "_results.json")
-    else:
-        results_path = results_dir / ("results_" + datetime.now().strftime("%Y%m%d_%H%M%S") + ".json")
-    if not running_experiments:
-        try:
-            print(f"[DEBUG] Attempting to write results JSON to: {results_path.resolve()}")
-            with open(results_path, "w", encoding="utf-8") as f:
-                json.dump(results_json, f, indent=2)
-            print(f"Saved results JSON to {results_path.resolve()}")
-        except Exception as e:
-            print(f"[ERROR] Failed to write results JSON to {results_path.resolve()}: {e}")
-
-    if return_results:
-        return results_json
-
-    if args.visualize:
-        items_for_viz = []
-        for r in processed_records:
-            matched_img = None
-            if r.matched_index is not None and 0 <= r.matched_index < len(raw_records):
-                matched_img = raw_records[r.matched_index].image
-                # Resize matched image to match processed image size for display
-                if matched_img.size != r.image.size:
-                    matched_img = matched_img.resize(r.image.size, Image.BILINEAR)
-            items_for_viz.append({
-                "INSTANCE": r.instance,
-                "CATEGORY": r.category,
-                "DISTANCE": r.nn_distance,
-                "ROTATION": r.rotation,
-                "LIGHTING": r.lighting,
-                "LBP": r.lbp_hist,
-                "IMAGE": r.image,  # preprocessed image (left)
-                "MATCHED_IMAGE": matched_img,  # matched raw image (right, resized)
-                "INDEX": r.index,
-                "MATCHED_INDEX": r.matched_index,
-                "MATCHED_CATEGORY": r.matched_category,
-                "MATCHED_INDICES": getattr(r, "matching_indices", []),
-                "MATCHED_DISTANCES": getattr(r, "matching_distances", []),
-                "MATCHED_CATEGORIES": getattr(r, "matching_categories", []),
-                "CORRECT": r.correct,
-            })
-        args_dict = vars(args)
-        save_pdf = args.save_csv is not None
-        visualize_matches(items_for_viz, metric_name=args.metric, args=args_dict, summary_lines=summary_lines, save_pdf=save_pdf)
 
 
 if __name__ == "__main__":

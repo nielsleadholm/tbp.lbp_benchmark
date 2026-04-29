@@ -7,7 +7,7 @@ rng:
 
 local_binary_patterns:
   P: 8
-  R: 1.0
+  R: 2.0
   method: "ror"   # [default, ror, uniform, var, ltp]
   use_ltp: true   # if true, uses Local Ternary Patterns instead of LBP
   ltp:
@@ -20,7 +20,7 @@ matching:
   top: 5
 
 preprocessing:
-  gaussian_blur: 0.0
+  gaussian_blur: 1.0
   gaussian_noise: 10
   illumination: null
   contrast: null
@@ -29,8 +29,8 @@ data_engineering:
   histogram_smoothing: 0.000001
 
 cropping:
-  width: null         # X
-  height: null        # Y
+  width: 128         # X
+  height: 128        # Y
   random_crop: false
 
 output:
