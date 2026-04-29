@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Literal
+from skimage.feature import local_binary_pattern as skimage_lbp
 
 import numpy as np
 
@@ -23,6 +24,11 @@ class LTPResult:
     codes_neg: np.ndarray
     histogram: np.ndarray
 
+@dataclass(frozen=True)
+class LBPResult:
+    """Container for Local Binary Pattern output."""
+    codes: np.ndarray
+    histogram: np.ndarray
 
 def _validate_gray_image(gray: np.ndarray) -> np.ndarray:
     """Validate and coerce an input image to a 2D float32 grayscale array."""
@@ -303,4 +309,29 @@ def local_ternary_pattern(
         codes_pos=codes_pos,
         codes_neg=codes_neg,
         histogram=histogram,
+    )
+
+def local_binary_pattern(
+    gray: np.ndarray,
+    p: int = 8,
+    r: float = 1.0,
+    method: str = "ror",
+    mask: np.ndarray | None = None,
+) -> LBPResult:
+    """Compute Local Binary Pattern features for a grayscale image."""
+    codes_raw: np.ndarray = skimage_lbp(gray, P=p, R=r, method=method).astype(np.uint32)
+    
+    if method == "uniform":
+        n_bins = p + 2
+    else:
+        n_bins = int(codes_raw.max() + 1)
+
+    hist, _ = np.histogram(
+        codes_raw.ravel(),
+        bins=n_bins,
+        range=(0, n_bins)
+    )
+    return LBPResult(
+        codes=codes_raw,
+        histogram=hist,
     )
