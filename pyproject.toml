@@ -12,6 +12,8 @@ dependencies = [
   "Pillow",
   "scikit-image",
   "scipy",
+  "matplotlib",
+  "pyyaml"
 ]
 
 [project.scripts]
