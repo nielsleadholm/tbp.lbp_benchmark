@@ -38,7 +38,8 @@ def parse_filename(filename: str) -> dict:
     Returns dict with keys:
         INSTANCE, CATEGORY, DISTANCE, ROTATION, LIGHTING
     """
-    parsed_filename = filename.split("_")
+    name_without_ext = os.path.splitext(filename)[0]
+    parsed_filename = name_without_ext.split("_")
     if len(parsed_filename) < 5:
         raise ValueError(f"Filename does not match expected format: {filename}")
 

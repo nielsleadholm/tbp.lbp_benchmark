@@ -5,35 +5,44 @@ from typing import Sequence
 from .image_data_containers import ImageRecord
 from datetime import datetime
 
-def save_matches_csv(records: Sequence[ImageRecord], out_path: str) -> None:
+def save_matches_csv(image_records: Sequence[ImageRecord], out_path: str = "matches") -> None:
     # Find root project director (hardcoded, probably shouldn't do this)
     project_root = Path(__file__).resolve().parents[2]
-
+    
     # Build results directory path
     results_dir = project_root / "results"
     results_dir.mkdir(exist_ok=True)
-
+    
     # Use the provided out_path as the filename, only add timestamp if not specified
     if out_path.endswith('.csv'):
         output_path = results_dir / out_path
     else:
         # If not a csv, add timestamp
-        out_path = out_path + "_" + datetime.now().strftime("%Y%m%d_%H%M%S_") + ".csv"
-        output_path = results_dir / out_path
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = results_dir / f"{out_path}_{timestamp}.csv"
+    
     with open(output_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["Index", "Instance", "Category", "Distance", "Matched_Category", "Matched_Index", "Correct"])
-        for r in records:
-            writer.writerow([
-                r.index,
-                r.instance,
-                r.category,
-                r.distance,
-                r.matched_category,
-                r.matched_index,
-                bool(r.correct),
-            ])
-
+        writer.writerow([
+            "Query_Index", "Query_Instance", "Query_Category", "Query_Distance", 
+            "Query_Rotation", "Query_Lighting", "Matched_Category", "Matched_Index", "NN_Distance", "Correct"
+        ])
+        
+        for query_idx, img_record in enumerate(image_records):
+            for match_record in img_record.match_records:
+                writer.writerow([
+                    query_idx + 1,
+                    img_record.instance,
+                    img_record.category,
+                    img_record.distance,
+                    img_record.rotation,
+                    img_record.lighting,
+                    match_record.matched_category,
+                    match_record.matched_index,
+                    match_record.nn_distance,
+                    match_record.correct,
+                ])
+                
 def print_verbose_report(records: Sequence[ImageRecord]) -> None:
     total = len(records)
     correct_count = 0

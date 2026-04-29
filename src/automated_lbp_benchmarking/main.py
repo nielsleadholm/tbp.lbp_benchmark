@@ -22,6 +22,7 @@ from .processed_to_raw_image_matching import ProcessedToRawMatcher
 from .match_statistics import compute_match_distance_stats
 from .visualization import visualize_image_records
 from .save_visualization_as_pdf import create_image_record_match_pdf
+from .result_logging import save_matches_csv
 
 def main(return_results, cli_args=None) -> Optional[dict]:
     parser = argparse.ArgumentParser()
@@ -77,6 +78,9 @@ def main(return_results, cli_args=None) -> Optional[dict]:
     processed_matched_records = matcher(working_image_records, raw_image_records)
     stats = compute_match_distance_stats(processed_matched_records)
     print(stats)
+
+    save_matches_csv(processed_matched_records, "match_results.csv")
+    
     create_image_record_match_pdf(
         image_records=processed_matched_records,
         output_path="image_record_matches.pdf",
