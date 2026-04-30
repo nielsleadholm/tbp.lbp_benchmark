@@ -79,17 +79,21 @@ def main(return_results, cli_args=None) -> Optional[dict]:
     stats = compute_match_distance_stats(processed_matched_records)
     print(stats)
 
-    save_matches_csv(processed_matched_records, "match_results.csv")
+    if config_dict["output"]["csv_filename"] is not None:
+        save_matches_csv(processed_matched_records, config_dict["output"]["csv_filename"])
     
-    create_image_record_match_pdf(
-        image_records=processed_matched_records,
-        output_path="image_record_matches.pdf",
-        stats=stats,
-        config=config_dict,
-        records_per_page=5,
-        matches_per_row=top_k,
-    )
-    visualize_image_records(processed_matched_records, 50)
+    if config_dict["output"]["pdf_filename"] is not None:
+        create_image_record_match_pdf(
+            image_records=processed_matched_records,
+            output_path=f"{config_dict["output"]["pdf_filename"]}.pdf",
+            stats=stats,
+            config=config_dict,
+            records_per_page=5,
+            matches_per_row=top_k,
+        )
+
+    if config_dict["output"]["visualize"]:
+        visualize_image_records(processed_matched_records, 50)
 
 
 if __name__ == "__main__":

@@ -60,10 +60,9 @@ def apply_processing(image: Image.Image, processing_args: Dict, rng: np.random.G
     illumination_factor = processing_args["preprocessing"]["illumination"]
     contrast_factor = processing_args["preprocessing"]["contrast"]
 
+    crop_rng = rng if random_crop else None
     if processing_args["cropping"]["width"] and processing_args["cropping"]["height"]:
-        if random_crop == False:
-            rng = None  # Disable randomness for center cropping
-        processed_image = center_crop_pil(processed_image, processing_args["cropping"]["width"], processing_args["cropping"]["height"], rng)
+        processed_image = center_crop_pil(processed_image, processing_args["cropping"]["width"], processing_args["cropping"]["height"], crop_rng)
 
     image_as_array = np.asarray(processed_image, dtype=np.uint8)
     if gaussian_noise and gaussian_noise > 0:
