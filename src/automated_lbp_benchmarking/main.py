@@ -14,6 +14,7 @@ from PIL import Image
 from .image_file_handling import get_images_in_folder_as_image_records
 from .local_binary_pattern_processing import LBPResult, LTPResult, local_binary_pattern, local_ternary_pattern
 from .local_binary_pattern_processing import local_ternary_pattern, LTPResult
+from .texture_extraction_registry import get_texture_feature_vector
 from .image_processing import apply_PIL_processing, apply_numpy_processing
 from skimage.color import rgb2gray
 from .processed_to_raw_image_matching import ProcessedToRawMatcher
@@ -43,12 +44,6 @@ def main(return_results, cli_args=None) -> Optional[dict]:
     raw_image_records = get_images_in_folder_as_image_records(images)
     working_image_records = get_images_in_folder_as_image_records(images)
 
-    p = config_dict["local_binary_patterns"]["P"]
-    r = config_dict["local_binary_patterns"]["R"]
-    method = config_dict["local_binary_patterns"]["method"]
-    use_ltp = config_dict["local_binary_patterns"]["use_ltp"]
-    ltp_threshold = config_dict["local_binary_patterns"]["ltp"]["threshold"]
-
     for records, processing_config in [
         (raw_image_records, config_dict["target_image_processing"]),
         (working_image_records, config_dict["query_image_processing"]),
@@ -59,13 +54,9 @@ def main(return_results, cli_args=None) -> Optional[dict]:
             processed_image = apply_numpy_processing(processed_image, processing_config, rng=rng)
             record.image = Image.fromarray(processed_image)
             gray_image = rgb2gray(processed_image)
-            image_array = (gray_image * 255).astype(np.uint8)  # Convert to uint8 format expected by LBP functions   
-            if use_ltp:
-                ltp_result: LTPResult = local_ternary_pattern(image_array, p=p, r=r, method=method, threshold=ltp_threshold)
-                record.lbp_hist = ltp_result.histogram
-            else:
-                lbp_result: LBPResult = local_binary_pattern(image_array, p=p, r=r, method=method)
-                record.lbp_hist = lbp_result.histogram
+            image_array = (gray_image * 255).astype(np.uint8)  # Convert to uint8 format expected by LBP functions  
+            hist = get_texture_feature_vector(image_array, config_dict).histogram
+            record.lbp_hist = hist
         
     distance_metric = config_dict["matching"]["metric"]
     match_tolerance = config_dict["matching"]["tolerance"]
