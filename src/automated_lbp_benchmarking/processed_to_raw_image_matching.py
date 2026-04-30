@@ -17,43 +17,45 @@ class ProcessedToRawMatcher:
         if self.top is None:
             self.top = 1
         if not processed_records or not raw_records:
-            return processed_records
+            raise ValueError("No records provided for matching.")
 
+        # Get distance function based on metric name
         distance_fn = self.distance_fn
         if self.metric_name:
             distance_fn = get_distance_metric(self.metric_name)
 
+        # Get all LBP histograms from raw 'target' records
         raw_hists = [np.asarray(r.lbp_hist, dtype=np.float64) for r in raw_records]
-        num_raw_records = len(raw_hists)
 
+        # Loop through each processed (query) record and compute distances to all raw (target) records
+        # Top-k matches within tolerance parameter is stored in the processed record's match_records attribute
         for record_index, proc_record in enumerate(processed_records):
             proc_record.index = record_index
-            match_records: List[MatchRecord] = []
-            visited = []
-            min_val = float("inf")
-            min_idx = -1
+            proc_hist = np.asarray(proc_record.lbp_hist, dtype=np.float64)
 
-            for top_n_match_index in range(self.top):
-                for raw_record_index in range(num_raw_records):
-                    if raw_record_index in visited:
-                        continue
-                    distance_between_feature_vectors = distance_fn(np.asarray(proc_record.lbp_hist, dtype=np.float64), raw_hists[raw_record_index])
-                    if distance_between_feature_vectors < min_val and distance_between_feature_vectors <= self.tolerance:
-                        min_val = distance_between_feature_vectors
-                        min_idx = raw_record_index
-                correct = (raw_records[min_idx].category == proc_record.category)
-                matched_image = raw_records[min_idx].image if hasattr(raw_records[min_idx], "image") else None
-                new_match = MatchRecord(
-                    matched_index=min_idx,
-                    matched_category=raw_records[min_idx].category,
-                    nn_distance=min_val,
-                    correct=correct,
-                    matched_image=matched_image)
-                visited.append(min_idx)
-                if min_val == float("inf"):
-                    break
-                match_records.append(new_match)
-                min_val = float("inf")
-                min_idx = -1
-            proc_record.match_records = match_records
+            distances = np.asarray([
+                distance_fn(proc_hist, raw_hist)
+                for raw_hist in raw_hists
+            ])
+
+            valid_indices = np.where(distances <= self.tolerance)[0]
+
+            # Prevent false positive matching of final image when no matches are found/tolerance too low
+            if len(valid_indices) == 0:
+                proc_record.match_records = []
+                continue
+
+            top_indices = valid_indices[np.argsort(distances[valid_indices])[:self.top]]
+
+            # Store match records list in the processed record's match_records attribute
+            proc_record.match_records = [
+                MatchRecord(
+                    matched_index=i,
+                    matched_category=raw_records[i].category,
+                    nn_distance=float(distances[i]),
+                    correct=(raw_records[i].category == proc_record.category),
+                    matched_image=getattr(raw_records[i], "image", None),
+                )
+                for i in top_indices
+            ]
         return processed_records

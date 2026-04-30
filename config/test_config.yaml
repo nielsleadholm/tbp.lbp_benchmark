@@ -17,7 +17,7 @@ local_binary_patterns:
 matching:
   metric: "chi2"      # [chi2, cosine, hellinger]
   tolerance: 0.1     # tolerance for matching histograms. Matches will only be reported if distance is below this threshold. Set to 1 to allow all matches.
-  top: 3          # Number of matches to report per image. Tolerance takes precedence.
+  top: 10          # Number of matches to report per image. Tolerance takes precedence.
 
 preprocessing:
   gaussian_blur: 1
@@ -36,7 +36,7 @@ cropping:
 output:
   csv_filename: null
   pdf_filename: null
-  visualize: false
+  visualize: true
 
 logging:
   verbose: false
