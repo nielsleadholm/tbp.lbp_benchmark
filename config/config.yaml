@@ -7,35 +7,35 @@ rng:
 
 local_binary_patterns:
   P: 8
-  R: 2.0
-  method: "ror"   # [default, ror, uniform, var, ltp]
-  use_ltp: true   # if true, uses Local Ternary Patterns instead of LBP
+  R: 1.0
+  method: "uniform"   # [default, ror, uniform, var, ltp] IF use_ltp is false. Otherwise, [ror, uniform]
+  use_ltp: false   # if true, uses Local Ternary Patterns instead of LBP
   ltp:
-    threshold: 5     # enables LTP if set
+    threshold: 5     # threshold for generating LTP codes (during neighbor coparison, differences in threshold will be encoded as 0)
     use_image_mask: false   # if true, uses a mask of valid pixels for LTP (e.g. to avoid borders)
 
 matching:
   metric: "chi2"      # [chi2, cosine, hellinger]
-  tolerance: null
-  top: 5
+  tolerance: 1     # tolerance for matching histograms. Matches will only be reported if distance is below this threshold. Set to 1 to allow all matches.
+  top: 5          # Number of matches to report per image. Tolerance takes precedence.
 
 preprocessing:
-  gaussian_blur: 1.0
-  gaussian_noise: 10
+  gaussian_blur: null
+  gaussian_noise: null
   illumination: null
   contrast: null
 
 data_engineering:
-  histogram_smoothing: 0.000001
+  histogram_smoothing: null
 
 cropping:
-  width: 128         # X
-  height: 128        # Y
+  width: 256
+  height: 256
   random_crop: false
 
 output:
-  save_csv: "matches.csv"      # or "matches.csv"
-  visualize: false
+  save_csv: "matches.csv"
+  visualize: true
 
 logging:
   verbose: false

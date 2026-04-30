@@ -229,11 +229,12 @@ def _encode_codes(
     raise ValueError(f"Unsupported method {method!r}. Use 'default', 'ror', or 'uniform'.")
 
 
-def _normalized_histogram(
+def _get_histogram(
     codes: np.ndarray,
     n_bins: int,
     mask: np.ndarray | None = None,
     eps: float = 1e-6,
+    normalize: bool = False,
 ) -> np.ndarray:
     """Compute an L1-normalized histogram for encoded code values."""
     flat = codes.ravel()
@@ -245,7 +246,8 @@ def _normalized_histogram(
         flat = flat[np.asarray(mask, dtype=bool).ravel()]
 
     hist = np.bincount(flat, minlength=n_bins).astype(np.float32)
-    hist /= hist.sum() + eps
+    if normalize:
+        hist /= hist.sum() + eps
     return hist
 
 
@@ -257,7 +259,7 @@ def local_ternary_pattern(
     *,
     method: LTPMethod = "uniform",
     mask: np.ndarray | None = None,
-    normalize: bool = True,
+    equal_weight_signs: bool = True,
 ) -> LTPResult:
     """Compute Local Ternary Pattern features for a grayscale image.
 
@@ -280,7 +282,7 @@ def local_ternary_pattern(
             - "ror": rotation-invariant via minimum circular bit rotation
             - "uniform": uniform-pattern encoding
         mask: Optional boolean mask restricting which pixels contribute to histograms.
-        normalize: Whether to L1-normalize the concatenated feature vector.
+        equal_weight_signs: Whether to normalize each half of the produced histogram to give each sign equal weight.
 
     Returns:
         LTPResult containing positive codes, negative codes, and concatenated histogram.
@@ -297,13 +299,13 @@ def local_ternary_pattern(
     codes_pos, n_bins_pos = _encode_codes(codes_pos_raw, p=p, method=method)
     codes_neg, n_bins_neg = _encode_codes(codes_neg_raw, p=p, method=method)
 
-    hist_pos = _normalized_histogram(codes_pos, n_bins=n_bins_pos, mask=mask)
-    hist_neg = _normalized_histogram(codes_neg, n_bins=n_bins_neg, mask=mask)
+    hist_pos = _get_histogram(codes_pos, n_bins=n_bins_pos, mask=mask, normalize=equal_weight_signs)
+    hist_neg = _get_histogram(codes_neg, n_bins=n_bins_neg, mask=mask, normalize=equal_weight_signs)
 
     histogram = np.concatenate([hist_pos, hist_neg]).astype(np.float32, copy=False)
 
-    if normalize:
-        histogram /= histogram.sum() + 1e-6
+
+    histogram /= histogram.sum() + 1e-6
 
     return LTPResult(
         codes_pos=codes_pos,
@@ -331,6 +333,8 @@ def local_binary_pattern(
         bins=n_bins,
         range=(0, n_bins)
     )
+    hist = hist.astype(np.float32)
+    hist /= hist.sum() + 1e-6
     return LBPResult(
         codes=codes_raw,
         histogram=hist,

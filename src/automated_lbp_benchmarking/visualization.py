@@ -19,7 +19,7 @@ class ImageRecordMatchViewer:
         self.tk_images = []  # prevents images from being garbage-collected
 
         self.root = tk.Tk()
-        self.root.title("Image Record Match Viewer")
+        self.root.title("Texture Feature Extraction Bechmarker")
         self.root.geometry("1400x900")
 
         self._build_layout()
