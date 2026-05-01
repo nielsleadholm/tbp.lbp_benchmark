@@ -37,7 +37,7 @@ class ProcessedToRawMatcher:
                 distance_fn(proc_hist, raw_hist)
                 for raw_hist in raw_hists
             ])
-
+            distances = np.delete(distances, record_index)
             valid_indices = np.where(distances <= self.tolerance)[0]
 
             # Prevent false positive matching of final image when no matches are found/tolerance too low
