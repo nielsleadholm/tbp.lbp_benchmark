@@ -24,11 +24,14 @@ def get_texture_feature_vector(image_array: np.ndarray, config) -> np.ndarray:
         ).histogram
 
     elif method_name == "completed_local_binary_pattern":
+        component_weights=method_config.get("component_weights", [1, 1, 1])
+        component_weights = tuple(component_weights)
         result = completed_local_binary_pattern(
             image_array,
             p=method_config["P"],
             r=method_config["R"],
             method=method_config["method"],
+            component_weights=component_weights
         ).histogram
 
     elif method_name == "multi_scale":

@@ -427,6 +427,7 @@ def completed_local_binary_pattern(
     mask: np.ndarray | None = None,
     equal_weight_components: bool = True,
     smooth_sigma: float | None = None,
+    component_weights: tuple[float, float, float] = (666, 0.3, 0.1),
 ) -> CLBPResult:
     """Compute Completed Local Binary Pattern features for a grayscale image.
 
@@ -489,6 +490,9 @@ def completed_local_binary_pattern(
         normalize=equal_weight_components,
         smooth_sigma=smooth_sigma,
     )
+    hist_s *= component_weights[0]
+    hist_m *= component_weights[1]
+    hist_c *= component_weights[2]
 
     # Combine the three histograms in a single feature vector and normalize one final time
     histogram = np.concatenate([hist_s, hist_m, hist_c]).astype(

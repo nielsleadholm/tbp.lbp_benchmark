@@ -19,14 +19,14 @@ matching:
 # Processing to apply to image being matched against a set
 query_image_processing:
   preprocessing:
-    gaussian_blur: null
-    gaussian_noise: null
+    gaussian_blur: 0.5
+    gaussian_noise: 10
     illumination: null
     contrast: null
     
   cropping:
-    width: 256
-    height: 256
+    width: null
+    height: null
     random_crop: false
 
   resampling:
@@ -39,7 +39,7 @@ query_image_processing:
 target_image_processing:
   preprocessing:
     gaussian_blur: null
-    gaussian_noise: 5
+    gaussian_noise: null
     illumination: null
     contrast: null
     
