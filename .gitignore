@@ -35,4 +35,4 @@ htmlcov/
 *.log
 
 # Results
-results/
+#
