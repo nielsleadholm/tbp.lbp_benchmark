@@ -13,7 +13,8 @@ dependencies = [
   "scikit-image",
   "scipy",
   "matplotlib",
-  "pyyaml"
+  "pyyaml",
+  "reportlab",
 ]
 
 [project.scripts]
