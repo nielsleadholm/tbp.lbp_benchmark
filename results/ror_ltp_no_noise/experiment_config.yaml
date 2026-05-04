@@ -1,6 +1,7 @@
 data:
   # folder: folder containing test set of images. Must be an absolute path, with no nested folders inside.
-  folder: LBP_Test_Images/RotatedTexturePatches_NoBorder
+  query_images_folder: LBP_Test_Images/WellDefinedTextures_10Rotations_128
+  target_images_folder: LBP_Test_Images/WellDefinedTextures_10Rotations_128
 
 rng:
   seed: 42
@@ -15,19 +16,19 @@ texture_extraction:
 matching:
   metric: "hellinger"      # [chi2, cosine, hellinger]
   tolerance: 1     # tolerance for matching histograms. Matches will only be reported if distance is below this threshold. Set to 1 to allow all matches.
-  top: 5          # Number of matches to report per image. Tolerance takes precedence.
+  top: 10          # Number of matches to report per image. Tolerance takes precedence.
 
 # Processing to apply to image being matched against a set
 query_image_processing:
   preprocessing:
     gaussian_blur: null
-    gaussian_noise: 10
+    gaussian_noise: null
     illumination: null
     contrast: null
     
   cropping:
-    width: 256
-    height: 256
+    width: null
+    height: null
     random_crop: false
 
   resampling:
@@ -60,7 +61,7 @@ data_engineering:
 output:
   save_csv: true
   save_pdf: false
-  visualize: false
+  visualize: true
 
 logging:
   verbose: false
