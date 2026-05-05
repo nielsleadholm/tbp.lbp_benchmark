@@ -310,3 +310,36 @@ Displays match results in a GUI window
 
 Note: results will be saved under a new directory as /results/*config_name*/match_results.csv OR match_results.pdf
 ---
+
+#### Datasets
+
+There are multiple datasets provided. The TextureSwatches_ManualCapture is a dataset of photographs taken by hand on a collenction
+of 'texture swatches' which can be found [this Amazon link] (https://www.amazon.com/Autistic-Children-Assorted-Educational-Equipment/dp/B0CLZY3763/ref=sr_1_3?dib=eyJ2IjoiMSJ9.8dNda1VSeWhXevLy6JjrksNNIuCsllHZXWRNlu3p0HPyY7-Y_T9BNDUsMbs2WeHllBLKWr4snxcvwRQSUDshGF11ZdX9gude-O5RMKTbO2wyFRihPTci1dgYKtUj1gh9-n_CMiRi-Av1BvdOAhPlLCEjLU0MuFcgTBK3sJvg7AHh1JUj0Bvcc3OydmRVKT7kMtyCWKpYV-qNuY8tbpW7OAUclccIJAf-hrEuhOA86wphe3g2adkQOkPtj-OUUrr2QT02ElmAiwegOCc16rh8XX75MXp6cAlz987eJHk0Yog.29ZAGEJbOz3U4C0TnbRjFTzEO7ArGEavwDEHfbRz5ek&dib_tag=se&keywords=texture+swatches&qid=1777993426&sr=8-3)
+
+The remaining datasets are curated from images sourced from the Describable Textures Dataset. Images were selected under the criteria that they were
+ - representative of naturally encountered textures (no computer generated textures)
+ - contained a single, repeated 'instance' of a texture (no compositional/mix-and-matched textures)
+ - the texture comprised the majority or all of the image's contents
+
+ There are three datasets containing images at different rotations, 'WellDefinedTextures_10Rotations_64', 'WellDefinedTextures_10Rotations_128', and
+ 'WellDefinedTextures_10Rotations_256', each of which contain instances of a texture image at 10 different rotations of 36 degrees, 72 degrees, 108 degrees... up to 324 degrees in increments of 36 degrees. This serves to gather examples of textures rotated into orientations which do not fall perfectly along the x and y axis,
+ as working with such rotations can give misleading results in terms of rational invariance due how bits are shifted in the ror and uniform LBP encoding schemes.
+These rotated variants are in the resolution labeled at the end of their respective directory's identifier.
+
+There is an image set labeled as 'WellDefinedTextures_128' which contains only the original, unrotated images in a 128x128 resolution.
+
+Lastly, there is a dataset named 'DTD_TexturePatches_ExampleSet' which contains an array of textured imaged from the DTD dataset and at different rotations.
+This dataset is useful for showing how LBP works on certain types of images, but shouldn't be used for refinement of any texture extraction setups to be used
+in the real world due to the inclusion of textures which would not be encountered in the real world, as well as an imprecise labeling scheme.
+
+The recommended setup to test isolated texture extraction and matching capabilities is to utilize the WellDefinedTextures_10Rotations_128 set
+as a query set against the WellDefinedTextures_128 dataset as the target set. This will test all rotated variants of an image (including any noise configured
+to be added) against their non-rotated counterparts.
+
+The recommended setup to test texture exttraction and matching capabilities in a system such as Monty which may contain many images of the same texture
+but at different orientations, translations, etc., it is recommended to test any of the 'WellDefinedTextures_10Rotations' variants against themselves (so as both
+the query and target dataset). This will simulate matching textures to repeated records of itself at different rotations/translations, as well as many
+other textures, each of which contains multiple repeated records in the same fashion. From here, tolerance values can be derived from the post-run matching
+statistics, which can be fed back in to the system on a next-run basis to tune the tolerance value to a point where it can best filter out false positives
+without losing too many true positives.
+ 
