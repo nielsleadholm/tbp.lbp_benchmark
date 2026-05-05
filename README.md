@@ -40,7 +40,7 @@ pip install -e .
 To run the benchmark, ensure that you are in a shell terminal with the project root, ‘AutomatedLBP_Benchmarking’, as your current working directory and run the following command:
 
 ```bash
-Python run.py –config config/default_config.yaml
+Python run.py –-config config/default_config.yaml
 ```
 
 This will run the benchmarker using the configuration file located at ‘AutomatedLBP_Benchmarking/config/default_config.yaml’.
