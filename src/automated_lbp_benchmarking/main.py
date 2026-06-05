@@ -268,7 +268,7 @@ def main(cli_args=None, return_results: bool = False) -> Optional[dict]:
         summary_path = args.summary_csv
     else:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        summary_path = project_root / "results" / f"summary_{timestamp}.csv"
+        summary_path = project_root / "results" / f"summary_{lbp_name}_{timestamp}.csv"
     write_summary_csv(summary_rows, summary_path)
     print(f"\nSummary of {len(summary_rows)} experiment(s) saved to: {summary_path}")
 

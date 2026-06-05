@@ -66,12 +66,12 @@ This evaluates the `default_lbp` texture extraction + matching parameters agains
 
 - `--lbp-config` (required): path to a single LBP config (texture extraction + matching).
 - `--experiment-config` (required): one or more paths to experiment configs. These are evaluated in series.
-- `--summary-csv` (optional): path for the aggregate summary CSV. Defaults to `results/summary_<timestamp>.csv`.
+- `--summary-csv` (optional): path for the aggregate summary CSV. Defaults to `results/summary_<lbp_name>_<timestamp>.csv`.
 - `--visualize` (optional flag): open the results visualization GUI after each experiment finishes, overriding each experiment's `output.visualize` setting. Useful for inspecting matches without editing config files.
 
 ### Outputs
 
-- **Aggregate summary CSV** — one row per experiment, containing the matching statistics (total/correct/incorrect matches, percent correct, distance statistics) plus the LBP config, experiment config, run time, and `num_lbp_codes`. Written to `--summary-csv` (or `results/summary_<timestamp>.csv` by default).
+- **Aggregate summary CSV** — one row per experiment, containing the matching statistics (total/correct/incorrect matches, percent correct, distance statistics) plus the LBP config, experiment config, run time, and `num_lbp_codes`. Written to `--summary-csv` (or `results/summary_<lbp_name>_<timestamp>.csv` by default).
   - `num_lbp_codes` is the length of the feature vector (the total number of LBP codes / histogram bins) produced by the texture extraction setup. This is determined by the chosen encoding (e.g. for `P=8`, `default` → 256, `ror` → 36, `uniform` → 10) and is summed across scales for multi-scale configs, making it easy to compare the dimensionality cost of different LBP variants.
 - **Per-experiment outputs** — for each experiment whose `output` section enables them, results are written to `results/<lbp_name>__<experiment_name>/`:
   - `match_results.csv` (when `save_csv: true`): the raw per-match results.
@@ -80,6 +80,39 @@ This evaluates the `default_lbp` texture extraction + matching parameters agains
   - A visualization window opens when `visualize: true`.
 
 Each experiment takes only a few seconds to run on the bundled datasets. Once finished, you will see matching-related statistics in standard output for every experiment, followed by the path to the aggregate summary CSV. The example experiment configs use the ‘WellDefinedTextures’ datasets, which are derived from a subset of images included in a texture dataset called “Describable Textures Dataset”, which was gathered at a Johns Hopkins University summer workshop, and is hosted by Oxford University (dataset available at this link: https://www.robots.ox.ac.uk/~vgg/data/dtd/index.html#overview). This dataset uses the labels (cracked, dotted, flecked, etc.) derived from the original creators of the dataset.
+
+### Plotting and comparing results
+
+`plot_results.py` turns one or more aggregate summary CSVs into comparison plots. The intended workflow is to run each LBP config against the same series of increasingly challenging experiment conditions, then plot all of the resulting summaries together:
+
+```bash
+# One run per LBP config (each writes its own results/summary_<lbp_name>_<timestamp>.csv).
+python run.py \
+  --lbp-config config/lbp/default_lbp.yaml \
+  --experiment-config config/experiments/clean.yaml config/experiments/noisy_inputs.yaml config/experiments/illumination.yaml
+
+python run.py \
+  --lbp-config config/lbp/ltp_ror_multiscale.yaml \
+  --experiment-config config/experiments/clean.yaml config/experiments/noisy_inputs.yaml config/experiments/illumination.yaml
+
+# Plot every summary found in results/ (or pass explicit CSV paths).
+python plot_results.py
+```
+
+This produces two figures in `results/plots/`:
+
+- **`accuracy_comparison.png`** — a grouped bar plot of accuracy (% correct matches). Each experiment condition is a separate x-axis group, and each LBP configuration is a differently coloured bar, so you can read off how each method degrades as conditions get harder.
+- **`lbp_code_counts.png`** — a supplementary bar plot comparing the number of LBP codes (feature-vector length) per LBP configuration, making the dimensionality cost of each method easy to compare against its accuracy.
+
+The experiment conditions appear along the x-axis in the order they were run (so listing them worst-last gives a left-to-right "increasingly challenging" axis).
+
+**CLI arguments:**
+
+- `summaries` (positional, optional): one or more summary CSV files, or directories containing `summary_*.csv`. Defaults to searching `results/`.
+- `--output-dir` (optional): directory for the plot images. Defaults to `results/plots`.
+- `--accuracy-filename` / `--codes-filename` (optional): output filenames for the two plots.
+- `--accuracy-title` / `--codes-title` (optional): plot titles.
+- `--show` (optional flag): also display the plots interactively.
 
 ---
 
