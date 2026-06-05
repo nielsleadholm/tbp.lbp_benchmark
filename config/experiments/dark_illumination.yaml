@@ -1,4 +1,4 @@
-# Experiment config: query images perturbed with blur, noise, and mild illumination shift.
+# Experiment config: query images with a strong illumination (brightness) shift.
 # The LBP texture extraction + matching parameters come from a separate --lbp-config.
 
 data:
@@ -10,9 +10,9 @@ rng:
 
 query_image_processing:
   preprocessing:
-    gaussian_blur: 1.0
-    gaussian_noise: 10
-    illumination: 1.1
+    gaussian_blur: null
+    gaussian_noise: null
+    illumination: 0.5
     contrast: null
 
   cropping:
