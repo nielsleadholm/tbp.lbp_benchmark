@@ -45,15 +45,40 @@ pip install -e .
 
 ## How to use
 
-To run the benchmark, ensure that you are in a shell terminal with the project root, ‘AutomatedLBP_Benchmarking’, as your current working directory and run the following command:
+The benchmark is driven by **two kinds of YAML config**, which are kept separate so that LBP algorithm parameters can be reused across many different experimental conditions:
+
+1. **LBP config** (`config/lbp/`) — defines the texture extraction and matching parameters: `texture_extraction` and `matching`.
+2. **Experiment config** (`config/experiments/`) — defines the experimental conditions: the `data` (dataset choice), `rng` (random seed), the `query_image_processing` / `target_image_processing` perturbations (noise, blur, illumination, cropping, etc.), and the `output` options.
+
+A single run pairs **one** LBP config with **one or more** experiment configs. Each experiment config is evaluated **in series**, and the matching statistics for every experiment are written to a single aggregate CSV.
+
+To run the benchmark, ensure that you are in a shell terminal with the project root as your current working directory, then run, for example:
 
 ```bash
-python run.py --config config/default_config.yaml
+python run.py \
+  --lbp-config config/lbp/default_lbp.yaml \
+  --experiment-config config/experiments/clean.yaml config/experiments/noisy_inputs.yaml config/experiments/illumination.yaml
 ```
 
-This will run the benchmarker using the configuration file located at ‘AutomatedLBP_Benchmarking/config/default_config.yaml’.
+This evaluates the `default_lbp` texture extraction + matching parameters against three experimental conditions (clean, noisy, and illumination-shifted query images), one after another.
 
-The program will take approximately 10 to 20 seconds to run – this is normal and expected. Once it is finished running, you will see matching-related statistics in standard output, as well as a visualization screen displaying which images were computed as having the most ‘similar’ feature vectors. The default configuration uses the ‘RotatedTexturePatches_NoBorder’ dataset, which is a dataset derived from a subset of images included in a texture dataset called “Describable Textures Dataset”, which was gathered at a Johns Hopkins University summer workshop, and is hosted by Oxford University (dataset available at this link: https://www.robots.ox.ac.uk/~vgg/data/dtd/index.html#overview). This dataset uses the labels (cracked, dotted, flecked, etc.) derived from the original creators of the dataset.
+### CLI arguments
+
+- `--lbp-config` (required): path to a single LBP config (texture extraction + matching).
+- `--experiment-config` (required): one or more paths to experiment configs. These are evaluated in series.
+- `--summary-csv` (optional): path for the aggregate summary CSV. Defaults to `results/summary_<timestamp>.csv`.
+- `--visualize` (optional flag): open the results visualization GUI after each experiment finishes, overriding each experiment's `output.visualize` setting. Useful for inspecting matches without editing config files.
+
+### Outputs
+
+- **Aggregate summary CSV** — one row per experiment, containing the matching statistics (total/correct/incorrect matches, percent correct, distance statistics) plus the LBP config, experiment config, and run time. Written to `--summary-csv` (or `results/summary_<timestamp>.csv` by default).
+- **Per-experiment outputs** — for each experiment whose `output` section enables them, results are written to `results/<lbp_name>__<experiment_name>/`:
+  - `match_results.csv` (when `save_csv: true`): the raw per-match results.
+  - report PDF (when `save_pdf: true`).
+  - `run_config.yaml`: the fully merged config (LBP + experiment) actually used for the run, and a copy of the source experiment config.
+  - A visualization window opens when `visualize: true`.
+
+Each experiment takes only a few seconds to run on the bundled datasets. Once finished, you will see matching-related statistics in standard output for every experiment, followed by the path to the aggregate summary CSV. The example experiment configs use the ‘WellDefinedTextures’ datasets, which are derived from a subset of images included in a texture dataset called “Describable Textures Dataset”, which was gathered at a Johns Hopkins University summer workshop, and is hosted by Oxford University (dataset available at this link: https://www.robots.ox.ac.uk/~vgg/data/dtd/index.html#overview). This dataset uses the labels (cracked, dotted, flecked, etc.) derived from the original creators of the dataset.
 
 ---
 
@@ -102,10 +127,15 @@ Average distance among incorrect matches: 0.008493
 
 #### Configuration Guide
 
-This section explains how the configuration file works, what each parameter controls, and how to tune it for different experiments. 
-The benchmark is entirely driven by a YAML configuration file. You can modify parameters to test different feature extraction methods, matching strategies, and image transformations.
+This section explains how the configuration files work, what each parameter controls, and how to tune them for different experiments. The benchmark is driven by two YAML files: an **LBP config** and an **experiment config** (see *How to use* above).
 
-1) Dataset
+**Experiment config** (`config/experiments/`) contains sections: *Dataset*, *Random Number Generator*, *Query Image Processing*, *Target Image Processing*, *Data Engineering*, and *Output*.
+
+**LBP config** (`config/lbp/`) contains sections: *Texture Extraction* and *Matching*.
+
+The sections below describe every parameter; the heading for each notes which file it belongs in.
+
+1) Dataset *(experiment config)*
 ```yaml
 data: 
     query_images_folder: LBP_Test_Images/WellDefinedTextures_10Rotations_128
@@ -123,7 +153,7 @@ Path to the dataset of images in which to be used to match against.
 - Images in this set must abide by the same encoding scheme as 'query_images_folder'.
 - This dataset should remain unprocessed in standard experimental setups to test matching 'noisy' query images to a stored (target) dataset.
 
-2) Random Number Generator
+2) Random Number Generator *(experiment config)*
 ```yaml
 rng:
     seed: 42
@@ -135,7 +165,7 @@ rng:
 - Use the same seed when comparing configurations.
 
 
-3) Texture Extraction
+3) Texture Extraction *(LBP config)*
 This benchmarker supports the following variants of Local Binary Pattern texture extraction:
     - Standard Local Binary Pattern
     - Local Ternary Pattern
@@ -195,7 +225,7 @@ texture_extraction:
 ```
 
 
-4) Matching
+4) Matching *(LBP config)*
 ```yaml
 matching:
   metric: "chi2"
@@ -216,7 +246,7 @@ Maximum allowed distance for a match
 Number of matches returned per image
 
 
-5) Query Image Processing
+5) Query Image Processing *(experiment config)*
 Applies transformations to the input/query image to simulate variations before matching.
 Set to null to disable. Otherwise provide parameter values depending on implementation.
 ```yaml
@@ -279,7 +309,7 @@ query_image_processing:
         "bicubic" (smooth scaling)
 
 
-6) Target Image Processing
+6) Target Image Processing *(experiment config)*
 The same transformations and processing steps can be applied to the target image set as the query set, though
 generally these values should be left null in the 'target image processing' section of the configration
 to match query images against raw, known values. However, this can be useful for experimenting with matching against
@@ -287,7 +317,7 @@ different resolutions or matching varying patches of query images against varyin
 needing to explicitly curate an additional dataset.
 
 
-7) Data Engineering
+7) Data Engineering *(experiment config)*
 ```yaml
 data_engineering:
   histogram_smoothing: null
@@ -297,21 +327,21 @@ Applies smoothing to LBP histograms
     Helps reduce noise sensitivity
 
 
-8) Output
+8) Output *(experiment config)*
 ```yaml
 output:
   save_csv: true
-  save_pdf: true
-  visualize: true
+  save_pdf: false
+  visualize: false
 ```
 **save_csv:**
-Saves raw results
+Saves raw per-match results
 **save_pdf:**
 Saves report/visual output
 **visualize:**
 Displays match results in a GUI window
 
-Note: results will be saved under a new directory as /results/*config_name*/match_results.csv OR match_results.pdf
+Note: per-experiment results are saved under a new directory as `/results/<lbp_name>__<experiment_name>/match_results.csv` (or the report PDF). Regardless of these options, an aggregate summary CSV with one row per experiment is always written (see *Outputs* above).
 ---
 
 #### Datasets

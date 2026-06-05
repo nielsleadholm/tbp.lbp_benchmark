@@ -1,3 +1,6 @@
+# Experiment config: dataset, rng, and dataset perturbations (no LBP params here).
+# The LBP texture extraction + matching parameters come from a separate --lbp-config.
+
 data:
   query_images_folder: LBP_Test_Images/WellDefinedTextures_10Rotations_128
   target_images_folder: LBP_Test_Images/WellDefinedTextures_128
@@ -5,24 +8,13 @@ data:
 rng:
   seed: 42
 
-texture_extraction:
-  local_binary_pattern:
-    P: 8
-    R: 1.0
-    method: "uniform"
-
-matching:
-  metric: "chi2"
-  tolerance: 1
-  top: 1
-
 query_image_processing:
   preprocessing:
     gaussian_blur: null
     gaussian_noise: null
     illumination: null
     contrast: null
-    
+
   cropping:
     width: null
     height: null
@@ -39,7 +31,7 @@ target_image_processing:
     gaussian_noise: null
     illumination: null
     contrast: null
-    
+
   cropping:
     width: null
     height: null
@@ -51,6 +43,6 @@ target_image_processing:
     method: "lanczos"
 
 output:
-  save_csv: false
+  save_csv: true
   save_pdf: false
-  visualize: true
+  visualize: false
