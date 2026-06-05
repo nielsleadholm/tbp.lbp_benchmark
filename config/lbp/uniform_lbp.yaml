@@ -5,7 +5,7 @@ texture_extraction:
   local_binary_pattern:
     P: 8
     R: 1.0
-    method: "default"
+    method: "uniform"
 
 matching:
   metric: "chi2"

@@ -20,17 +20,17 @@ texture_extraction:
         threshold: 5
     - local_ternary_pattern:
         P: 8
+        R: 20.0
+        method: "ror"
+        threshold: 5
+    - local_ternary_pattern:
+        P: 8
         R: 30.0
         method: "ror"
         threshold: 5
     - local_ternary_pattern:
         P: 8
         R: 40.0
-        method: "ror"
-        threshold: 5
-    - local_ternary_pattern:
-        P: 8
-        R: 50.0
         method: "ror"
         threshold: 5
 

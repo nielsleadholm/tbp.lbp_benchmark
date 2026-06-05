@@ -4,9 +4,6 @@ python run.py --lbp-config config/lbp/default_lbp.yaml --experiment-config confi
 
 python run.py --lbp-config config/lbp/uniform_lbp.yaml --experiment-config config/experiments/clean.yaml config/experiments/bright_illumination.yaml config/experiments/dark_illumination.yaml config/experiments/gaussian_blur_0.5.yaml config/experiments/gaussian_blur_1.0.yaml config/experiments/gaussian_blur_2.0.yaml config/experiments/zoom_in_scale_0.9.yaml config/experiments/zoom_in_scale_0.75.yaml config/experiments/zoom_in_scale_0.5.yaml
 
-python run.py --lbp-config config/lbp/ltp_ror_simplified_multiscale.yaml --experiment-config config/experiments/clean.yaml config/experiments/bright_illumination.yaml config/experiments/dark_illumination.yaml config/experiments/gaussian_blur_0.5.yaml config/experiments/gaussian_blur_1.0.yaml config/experiments/gaussian_blur_2.0.yaml config/experiments/zoom_in_scale_0.9.yaml config/experiments/zoom_in_scale_0.75.yaml config/experiments/zoom_in_scale_0.5.yaml
-
-# Multiscale with large radius values (1 up to 50 pixels)
-python run.py --lbp-config config/lbp/ltp_ror_broad_multiscale.yaml --experiment-config config/experiments/clean.yaml config/experiments/bright_illumination.yaml config/experiments/dark_illumination.yaml config/experiments/gaussian_blur_0.5.yaml config/experiments/gaussian_blur_1.0.yaml config/experiments/gaussian_blur_2.0.yaml config/experiments/zoom_in_scale_0.9.yaml config/experiments/zoom_in_scale_0.75.yaml config/experiments/zoom_in_scale_0.5.yaml
+python run.py --lbp-config config/lbp/ltp_ror_multiscale.yaml --experiment-config config/experiments/clean.yaml config/experiments/bright_illumination.yaml config/experiments/dark_illumination.yaml config/experiments/gaussian_blur_0.5.yaml config/experiments/gaussian_blur_1.0.yaml config/experiments/gaussian_blur_2.0.yaml config/experiments/zoom_in_scale_0.9.yaml config/experiments/zoom_in_scale_0.75.yaml config/experiments/zoom_in_scale_0.5.yaml
 
 python plot_results.py
