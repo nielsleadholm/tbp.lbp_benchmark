@@ -48,7 +48,11 @@ def simulate_contrast(image_as_array: np.ndarray, contrast_factor: float) -> np.
     return (image_as_array - mean) * contrast_factor + mean
 
 def add_gaussian_blur(image_as_array: np.ndarray, sigma = 1.0) -> np.ndarray:
-    """Apply Gaussian blur to a NumPy image array."""
+    """Apply Gaussian blur to the spatial axes of a NumPy image array."""
+    if image_as_array.ndim == 3:
+        # Use sigma=0 on the channel axis so color channels are not blurred
+        # into each other (which would desaturate the image toward grey).
+        sigma = (sigma, sigma, 0)
     return gaussian_filter(image_as_array, sigma=sigma)
 
 def apply_PIL_processing(image: Image.Image, processing_args: Dict, rng: np.random.Generator) -> np.ndarray:
