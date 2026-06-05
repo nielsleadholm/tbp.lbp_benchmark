@@ -77,13 +77,15 @@ def run_single_experiment(
     run_name: str,
     config_source: Optional[Path] = None,
     force_visualize: bool = False,
-) -> tuple[MatchDistanceStats, float]:
+) -> tuple[MatchDistanceStats, float, int]:
     """Run a single experiment (one LBP config + one experiment config).
 
     When ``force_visualize`` is True, the results visualization GUI is shown
     regardless of the experiment config's ``output.visualize`` setting.
 
-    Returns the match-distance statistics and the elapsed processing time.
+    Returns the match-distance statistics, the elapsed processing time, and the
+    number of LBP codes (length of the feature vector / total histogram bins)
+    produced by the texture extraction setup.
     """
     rng = np.random.default_rng(seed=run_config["rng"]["seed"])
 
@@ -111,6 +113,10 @@ def run_single_experiment(
             hist = get_texture_feature_vector(image_array, run_config)
             record.lbp_hist = hist
 
+    # The feature-vector length (total number of LBP codes / histogram bins) is
+    # fixed by the texture extraction config, so any computed histogram reports it.
+    num_lbp_codes = int(len(query_image_records[0].lbp_hist))
+
     # Match query records (processed) against target records (raw).
     distance_metric = run_config["matching"]["metric"]
     match_tolerance = run_config["matching"]["tolerance"]
@@ -122,6 +128,7 @@ def run_single_experiment(
 
     print(f"\n=== Experiment: {run_name} ===")
     print(stats)
+    print(f"Total number of LBP codes (feature vector length): {num_lbp_codes}")
     print(f"Total time to process and match images: {elapsed:.4f} seconds")
 
     output_config = run_config.get("output", {})
@@ -154,7 +161,7 @@ def run_single_experiment(
     if visualize:
         visualize_image_records(processed_matched_records, 50)
 
-    return stats, elapsed
+    return stats, elapsed, num_lbp_codes
 
 
 def write_summary_csv(summary_rows: Sequence[dict], output_path: Path) -> Path:
@@ -164,6 +171,7 @@ def write_summary_csv(summary_rows: Sequence[dict], output_path: Path) -> Path:
         "run_name",
         "lbp_config",
         "experiment_config",
+        "num_lbp_codes",
         "total_matches",
         "total_correct",
         "total_incorrect",
@@ -238,7 +246,7 @@ def main(cli_args=None, return_results: bool = False) -> Optional[dict]:
         run_name = f"{lbp_name}__{experiment_name}"
 
         run_config = build_run_config(lbp_config, experiment_config)
-        stats, elapsed = run_single_experiment(
+        stats, elapsed, num_lbp_codes = run_single_experiment(
             run_config,
             run_name=run_name,
             config_source=experiment_path,
@@ -249,6 +257,7 @@ def main(cli_args=None, return_results: bool = False) -> Optional[dict]:
             "run_name": run_name,
             "lbp_config": str(args.lbp_config),
             "experiment_config": str(experiment_path),
+            "num_lbp_codes": num_lbp_codes,
             "time_seconds": round(elapsed, 4),
         }
         row.update(stats.as_dict())

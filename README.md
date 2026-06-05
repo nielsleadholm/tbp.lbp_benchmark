@@ -71,7 +71,8 @@ This evaluates the `default_lbp` texture extraction + matching parameters agains
 
 ### Outputs
 
-- **Aggregate summary CSV** — one row per experiment, containing the matching statistics (total/correct/incorrect matches, percent correct, distance statistics) plus the LBP config, experiment config, and run time. Written to `--summary-csv` (or `results/summary_<timestamp>.csv` by default).
+- **Aggregate summary CSV** — one row per experiment, containing the matching statistics (total/correct/incorrect matches, percent correct, distance statistics) plus the LBP config, experiment config, run time, and `num_lbp_codes`. Written to `--summary-csv` (or `results/summary_<timestamp>.csv` by default).
+  - `num_lbp_codes` is the length of the feature vector (the total number of LBP codes / histogram bins) produced by the texture extraction setup. This is determined by the chosen encoding (e.g. for `P=8`, `default` → 256, `ror` → 36, `uniform` → 10) and is summed across scales for multi-scale configs, making it easy to compare the dimensionality cost of different LBP variants.
 - **Per-experiment outputs** — for each experiment whose `output` section enables them, results are written to `results/<lbp_name>__<experiment_name>/`:
   - `match_results.csv` (when `save_csv: true`): the raw per-match results.
   - report PDF (when `save_pdf: true`).
