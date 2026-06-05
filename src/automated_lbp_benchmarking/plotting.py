@@ -27,15 +27,41 @@ import csv
 from pathlib import Path
 from typing import Optional, Sequence
 
+import numpy as np
+import yaml
+from PIL import Image
+
 import matplotlib
 
 matplotlib.use("Agg")  # Safe default for headless / scripted plotting.
 import matplotlib.pyplot as plt
 
+from .image_processing import apply_PIL_processing, apply_numpy_processing
+
 
 # Default location to search for summary CSVs when none are provided.
 DEFAULT_RESULTS_DIR = Path("results")
 DEFAULT_SUMMARY_GLOB = "summary_*.csv"
+
+# Project root (…/tbp.lbp_benchmark), used to resolve config/dataset paths that
+# are stored relative to it inside the summary CSVs.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+# Brand color palette, used in preference order (blue first, then pink, ...).
+PALETTE = (
+    "#00a0df",  # blue
+    "#f737bd",  # pink
+    "#5d11bf",  # purple
+    "#ffbe31",  # gold
+    "#008e43",  # green
+)
+
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".bmp", ".tiff")
+
+
+def _color(index: int):
+    """Return the palette color for a series, cycling if there are more than 5."""
+    return PALETTE[index % len(PALETTE)]
 
 
 class ExperimentRecord:
@@ -48,12 +74,16 @@ class ExperimentRecord:
         percent_correct: Optional[float],
         num_lbp_codes: Optional[int],
         source: Path,
+        experiment_config_path: str = "",
     ) -> None:
         self.lbp_label = lbp_label
         self.experiment_label = experiment_label
         self.percent_correct = percent_correct
         self.num_lbp_codes = num_lbp_codes
         self.source = source
+        # Raw experiment-config path from the CSV, kept so we can render a
+        # perturbation preview for each condition.
+        self.experiment_config_path = experiment_config_path
 
 
 def _label_from_path(raw: str) -> str:
@@ -142,6 +172,7 @@ def read_records(summary_files: Sequence[Path]) -> list[ExperimentRecord]:
                         percent_correct=_to_float(row.get("percent_correct")),
                         num_lbp_codes=_to_int(row.get("num_lbp_codes")),
                         source=summary_file,
+                        experiment_config_path=row.get("experiment_config", "") or "",
                     )
                 )
     if not records:
@@ -160,10 +191,162 @@ def _ordered_unique(values: Sequence[str]) -> list[str]:
     return ordered
 
 
+def _resolve_existing_path(raw: str) -> Optional[Path]:
+    """Resolve a (possibly relative) path from a summary CSV to an existing file/dir.
+
+    Summary CSVs store config and dataset paths relative to either the current
+    working directory or the project root, so both are tried.
+    """
+    if not raw:
+        return None
+    candidates = [Path(raw), Path.cwd() / raw, PROJECT_ROOT / raw]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _list_image_files(folder: Path) -> list[Path]:
+    return sorted(
+        p for p in folder.iterdir() if p.suffix.lower() in IMAGE_EXTENSIONS
+    )
+
+
+def load_condition_preview(
+    experiment_config_path: str,
+    example_name: Optional[str] = None,
+    size: tuple[int, int] = (128, 128),
+) -> Optional[Image.Image]:
+    """Render one target-dataset texture with a condition's perturbations applied.
+
+    This mirrors what the interactive ``--visualize`` tool shows: an example
+    image is run through the same ``query_image_processing`` pipeline used during
+    matching, giving a viewer an intuition for how strong each perturbation is.
+
+    Returns ``None`` (with a warning) if the config or dataset can't be located,
+    so a single missing preview never breaks the whole plot.
+    """
+    config_path = _resolve_existing_path(experiment_config_path)
+    if config_path is None:
+        print(f"[warning] Could not locate experiment config: {experiment_config_path!r}")
+        return None
+
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f) or {}
+
+    target_folder_raw = config.get("data", {}).get("target_images_folder", "")
+    target_folder = _resolve_existing_path(target_folder_raw)
+    if target_folder is None or not target_folder.is_dir():
+        print(f"[warning] Could not locate target images folder: {target_folder_raw!r}")
+        return None
+
+    image_files = _list_image_files(target_folder)
+    if not image_files:
+        print(f"[warning] No images found in target folder: {target_folder}")
+        return None
+
+    # Prefer a consistent example across conditions so the only visible
+    # difference is the perturbation itself.
+    chosen = None
+    if example_name is not None:
+        for candidate in image_files:
+            if candidate.stem == example_name or candidate.name == example_name:
+                chosen = candidate
+                break
+    if chosen is None:
+        chosen = image_files[0]
+
+    processing_config = config.get("query_image_processing")
+    if processing_config is None:
+        print(f"[warning] No 'query_image_processing' section in {config_path}")
+        return None
+
+    seed = config.get("rng", {}).get("seed", 0)
+    rng = np.random.default_rng(seed=seed)
+
+    image = Image.open(chosen).convert("RGB")
+    image = apply_PIL_processing(image, processing_config, rng=rng)
+    processed_array = apply_numpy_processing(image, processing_config, rng=rng)
+    preview = Image.fromarray(processed_array)
+    preview.thumbnail(size)
+    return preview
+
+
+def build_condition_previews(
+    records: Sequence[ExperimentRecord],
+    example_name: Optional[str] = None,
+    size: tuple[int, int] = (128, 128),
+) -> dict[str, Optional[Image.Image]]:
+    """Build one perturbation preview per experiment condition (first-seen config)."""
+    config_by_label: dict[str, str] = {}
+    for r in records:
+        if r.experiment_label not in config_by_label and r.experiment_config_path:
+            config_by_label[r.experiment_label] = r.experiment_config_path
+
+    previews: dict[str, Optional[Image.Image]] = {}
+    for label, config_path in config_by_label.items():
+        previews[label] = load_condition_preview(
+            config_path, example_name=example_name, size=size
+        )
+    return previews
+
+
+def _add_condition_previews(
+    fig,
+    ax,
+    experiment_labels: Sequence[str],
+    previews: dict[str, Optional[Image.Image]],
+) -> None:
+    """Place a small perturbed-texture thumbnail beneath each x-axis condition."""
+    num_groups = len(experiment_labels)
+    if num_groups == 0:
+        return
+
+    pos = ax.get_position()
+    fig_w_in, fig_h_in = fig.get_size_inches()
+    fig_aspect = fig_w_in / fig_h_in
+
+    group_width_fig = pos.width / num_groups
+    # Keep thumbnails square in display space and within the reserved margin.
+    thumb_h = min(0.18, max(pos.y0 - 0.08, 0.05))
+    thumb_w = thumb_h / fig_aspect
+    if thumb_w > 0.9 * group_width_fig:
+        thumb_w = 0.9 * group_width_fig
+        thumb_h = thumb_w * fig_aspect
+
+    top_of_thumb = pos.y0 - 0.035
+    bottom = max(0.04, top_of_thumb - thumb_h)
+
+    for i, label in enumerate(experiment_labels):
+        preview = previews.get(label)
+        if preview is None:
+            continue
+        center_x = pos.x0 + (i + 0.5) / num_groups * pos.width
+        thumb_ax = fig.add_axes(
+            [center_x - thumb_w / 2, bottom, thumb_w, thumb_h]
+        )
+        thumb_ax.imshow(preview)
+        thumb_ax.set_xticks([])
+        thumb_ax.set_yticks([])
+        for spine in thumb_ax.spines.values():
+            spine.set_edgecolor("#444444")
+            spine.set_linewidth(0.8)
+
+    # Add the x-axis label beneath the thumbnail row.
+    fig.text(
+        pos.x0 + pos.width / 2,
+        max(0.005, bottom - 0.045),
+        "Experiment condition (example perturbed texture shown below each)",
+        ha="center",
+        va="top",
+    )
+
+
 def plot_accuracy(
     records: Sequence[ExperimentRecord],
     output_path: Path,
     title: str = "LBP accuracy across experiment conditions",
+    previews: Optional[dict[str, Optional[Image.Image]]] = None,
 ) -> Path:
     """Grouped bar plot: x = experiment condition, color = LBP config, y = accuracy (%)."""
     lbp_labels = _ordered_unique([r.lbp_label for r in records])
@@ -180,8 +363,11 @@ def plot_accuracy(
     bar_width = group_width / max(num_series, 1)
     x_positions = list(range(num_groups))
 
-    cmap = plt.get_cmap("tab10")
-    fig, ax = plt.subplots(figsize=(max(7, 1.8 * num_groups + 2), 5.5))
+    has_previews = bool(previews) and any(
+        previews.get(label) is not None for label in exp_labels
+    )
+
+    fig, ax = plt.subplots(figsize=(max(7, 1.8 * num_groups + 2), 6.5))
 
     for series_idx, lbp_label in enumerate(lbp_labels):
         heights = [
@@ -196,7 +382,7 @@ def plot_accuracy(
             heights,
             width=bar_width,
             label=_humanize(lbp_label),
-            color=cmap(series_idx % 10),
+            color=_color(series_idx),
             edgecolor="white",
             linewidth=0.5,
         )
@@ -204,14 +390,24 @@ def plot_accuracy(
 
     ax.set_xticks(x_positions)
     ax.set_xticklabels([_humanize(e) for e in exp_labels])
+    ax.set_xlim(-0.5, num_groups - 0.5)
     ax.set_ylabel("Accuracy (% correct matches)")
-    ax.set_xlabel("Experiment condition")
+    # When previews are drawn the x-axis label is added beneath the thumbnail
+    # row (see _add_condition_previews) to avoid overlapping the images.
+    if not has_previews:
+        ax.set_xlabel("Experiment condition")
     ax.set_ylim(0, 105)
     ax.set_title(title)
     ax.legend(title="LBP configuration", frameon=False)
     ax.grid(axis="y", linestyle=":", alpha=0.5)
     ax.set_axisbelow(True)
-    fig.tight_layout()
+
+    if has_previews:
+        # Reserve the bottom portion of the figure for the preview thumbnails.
+        fig.tight_layout(rect=(0, 0.26, 1, 1))
+        _add_condition_previews(fig, ax, exp_labels, previews)
+    else:
+        fig.tight_layout()
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=150)
@@ -234,8 +430,7 @@ def plot_lbp_code_counts(
 
     heights = [codes_by_lbp.get(lbp) or 0 for lbp in lbp_labels]
     x_positions = list(range(len(lbp_labels)))
-    cmap = plt.get_cmap("tab10")
-    colors = [cmap(i % 10) for i in range(len(lbp_labels))]
+    colors = [_color(i) for i in range(len(lbp_labels))]
 
     fig, ax = plt.subplots(figsize=(max(6, 1.6 * len(lbp_labels) + 2), 5.5))
     bars = ax.bar(
@@ -308,6 +503,22 @@ def main(cli_args: Optional[Sequence[str]] = None) -> None:
         help="Title for the LBP-code-count plot.",
     )
     parser.add_argument(
+        "--no-previews",
+        action="store_true",
+        help=(
+            "Disable the perturbed-texture preview thumbnails beneath the "
+            "accuracy plot's x-axis."
+        ),
+    )
+    parser.add_argument(
+        "--preview-example",
+        default=None,
+        help=(
+            "Name (or stem) of the target-dataset image to use for the preview "
+            "thumbnails. Defaults to the first image in the target folder."
+        ),
+    )
+    parser.add_argument(
         "--show",
         action="store_true",
         help="Display the plots interactively in addition to saving them.",
@@ -322,10 +533,17 @@ def main(cli_args: Optional[Sequence[str]] = None) -> None:
 
     records = read_records(summary_files)
 
+    previews = None
+    if not args.no_previews:
+        previews = build_condition_previews(
+            records, example_name=args.preview_example
+        )
+
     accuracy_path = plot_accuracy(
         records,
         args.output_dir / args.accuracy_filename,
         title=args.accuracy_title,
+        previews=previews,
     )
     codes_path = plot_lbp_code_counts(
         records,
