@@ -212,24 +212,50 @@ def _list_image_files(folder: Path) -> list[Path]:
     )
 
 
-def load_condition_preview(
+def _select_example_files(
+    image_files: Sequence[Path],
+    count: int,
+    example_name: Optional[str],
+) -> list[Path]:
+    """Pick ``count`` example images (deterministically), optionally pinning one.
+
+    Files are sorted, so the same images are chosen across conditions that share a
+    target folder; the only visible difference between conditions is then the
+    perturbation itself.
+    """
+    chosen: list[Path] = []
+    if example_name is not None:
+        for candidate in image_files:
+            if candidate.stem == example_name or candidate.name == example_name:
+                chosen.append(candidate)
+                break
+    for candidate in image_files:
+        if len(chosen) >= count:
+            break
+        if candidate not in chosen:
+            chosen.append(candidate)
+    return chosen[:count]
+
+
+def load_condition_previews(
     experiment_config_path: str,
     example_name: Optional[str] = None,
+    count: int = 2,
     size: tuple[int, int] = (128, 128),
-) -> Optional[Image.Image]:
-    """Render one target-dataset texture with a condition's perturbations applied.
+) -> list[Image.Image]:
+    """Render ``count`` target-dataset textures with a condition's perturbations applied.
 
-    This mirrors what the interactive ``--visualize`` tool shows: an example
+    This mirrors what the interactive ``--visualize`` tool shows: each example
     image is run through the same ``query_image_processing`` pipeline used during
     matching, giving a viewer an intuition for how strong each perturbation is.
 
-    Returns ``None`` (with a warning) if the config or dataset can't be located,
-    so a single missing preview never breaks the whole plot.
+    Returns an empty list (with a warning) if the config or dataset can't be
+    located, so a single missing preview never breaks the whole plot.
     """
     config_path = _resolve_existing_path(experiment_config_path)
     if config_path is None:
         print(f"[warning] Could not locate experiment config: {experiment_config_path!r}")
-        return None
+        return []
 
     with open(config_path, "r") as f:
         config = yaml.safe_load(f) or {}
@@ -238,55 +264,51 @@ def load_condition_preview(
     target_folder = _resolve_existing_path(target_folder_raw)
     if target_folder is None or not target_folder.is_dir():
         print(f"[warning] Could not locate target images folder: {target_folder_raw!r}")
-        return None
+        return []
 
     image_files = _list_image_files(target_folder)
     if not image_files:
         print(f"[warning] No images found in target folder: {target_folder}")
-        return None
-
-    # Prefer a consistent example across conditions so the only visible
-    # difference is the perturbation itself.
-    chosen = None
-    if example_name is not None:
-        for candidate in image_files:
-            if candidate.stem == example_name or candidate.name == example_name:
-                chosen = candidate
-                break
-    if chosen is None:
-        chosen = image_files[0]
+        return []
 
     processing_config = config.get("query_image_processing")
     if processing_config is None:
         print(f"[warning] No 'query_image_processing' section in {config_path}")
-        return None
+        return []
 
     seed = config.get("rng", {}).get("seed", 0)
-    rng = np.random.default_rng(seed=seed)
+    chosen_files = _select_example_files(image_files, count, example_name)
 
-    image = Image.open(chosen).convert("RGB")
-    image = apply_PIL_processing(image, processing_config, rng=rng)
-    processed_array = apply_numpy_processing(image, processing_config, rng=rng)
-    preview = Image.fromarray(processed_array)
-    preview.thumbnail(size)
-    return preview
+    previews: list[Image.Image] = []
+    for chosen in chosen_files:
+        # Re-seed per example so each renders deterministically, while still
+        # giving distinct random crops/noise across the different textures.
+        rng = np.random.default_rng(seed=seed)
+        image = Image.open(chosen).convert("RGB")
+        image = apply_PIL_processing(image, processing_config, rng=rng)
+        processed_array = apply_numpy_processing(image, processing_config, rng=rng)
+        preview = Image.fromarray(processed_array)
+        preview.thumbnail(size)
+        previews.append(preview)
+    return previews
 
 
 def build_condition_previews(
     records: Sequence[ExperimentRecord],
     example_name: Optional[str] = None,
+    count: int = 2,
     size: tuple[int, int] = (128, 128),
-) -> dict[str, Optional[Image.Image]]:
-    """Build one perturbation preview per experiment condition (first-seen config)."""
+) -> dict[str, list[Image.Image]]:
+    """Build ``count`` perturbation previews per experiment condition (first-seen config)."""
     config_by_label: dict[str, str] = {}
     for r in records:
         if r.experiment_label not in config_by_label and r.experiment_config_path:
             config_by_label[r.experiment_label] = r.experiment_config_path
 
-    previews: dict[str, Optional[Image.Image]] = {}
+    previews: dict[str, list[Image.Image]] = {}
     for label, config_path in config_by_label.items():
-        previews[label] = load_condition_preview(
-            config_path, example_name=example_name, size=size
+        previews[label] = load_condition_previews(
+            config_path, example_name=example_name, count=count, size=size
         )
     return previews
 
@@ -295,48 +317,63 @@ def _add_condition_previews(
     fig,
     ax,
     experiment_labels: Sequence[str],
-    previews: dict[str, Optional[Image.Image]],
+    previews: dict[str, list[Image.Image]],
 ) -> None:
-    """Place a small perturbed-texture thumbnail beneath each x-axis condition."""
+    """Stack the perturbed-texture example thumbnails beneath each x-axis condition."""
     num_groups = len(experiment_labels)
     if num_groups == 0:
+        return
+
+    # Number of examples to stack per column (max across conditions).
+    rows = max((len(previews.get(label, [])) for label in experiment_labels), default=0)
+    if rows == 0:
         return
 
     pos = ax.get_position()
     fig_w_in, fig_h_in = fig.get_size_inches()
     fig_aspect = fig_w_in / fig_h_in
 
+    gap = 0.008  # vertical gap (figure fraction) between stacked thumbnails
     group_width_fig = pos.width / num_groups
-    # Keep thumbnails square in display space and within the reserved margin.
-    thumb_h = min(0.18, max(pos.y0 - 0.08, 0.05))
+    # The whole stack must fit in the reserved bottom margin, leaving room below
+    # the axis tick labels (top) and the x-axis caption (bottom).
+    available_height = max(pos.y0 - 0.12, 0.05)
+
+    # Size a single thumbnail so the stack fits both vertically and within a
+    # column, keeping each thumbnail square in display space.
+    thumb_h = (available_height - (rows - 1) * gap) / rows
     thumb_w = thumb_h / fig_aspect
     if thumb_w > 0.9 * group_width_fig:
         thumb_w = 0.9 * group_width_fig
         thumb_h = thumb_w * fig_aspect
 
-    top_of_thumb = pos.y0 - 0.035
-    bottom = max(0.04, top_of_thumb - thumb_h)
+    stack_height = rows * thumb_h + (rows - 1) * gap
+    stack_top = pos.y0 - 0.035
+    stack_bottom = max(0.06, stack_top - stack_height)
 
     for i, label in enumerate(experiment_labels):
-        preview = previews.get(label)
-        if preview is None:
+        column_previews = previews.get(label, [])
+        if not column_previews:
             continue
         center_x = pos.x0 + (i + 0.5) / num_groups * pos.width
-        thumb_ax = fig.add_axes(
-            [center_x - thumb_w / 2, bottom, thumb_w, thumb_h]
-        )
-        thumb_ax.imshow(preview)
-        thumb_ax.set_xticks([])
-        thumb_ax.set_yticks([])
-        for spine in thumb_ax.spines.values():
-            spine.set_edgecolor("#444444")
-            spine.set_linewidth(0.8)
+        for row_idx, preview in enumerate(column_previews):
+            # Row 0 sits at the top of the stack, just under the tick label.
+            thumb_bottom = stack_top - (row_idx + 1) * thumb_h - row_idx * gap
+            thumb_ax = fig.add_axes(
+                [center_x - thumb_w / 2, thumb_bottom, thumb_w, thumb_h]
+            )
+            thumb_ax.imshow(preview)
+            thumb_ax.set_xticks([])
+            thumb_ax.set_yticks([])
+            for spine in thumb_ax.spines.values():
+                spine.set_edgecolor("#444444")
+                spine.set_linewidth(0.8)
 
-    # Add the x-axis label beneath the thumbnail row.
+    # Add the x-axis label beneath the thumbnail stack.
     fig.text(
         pos.x0 + pos.width / 2,
-        max(0.005, bottom - 0.045),
-        "Experiment condition (example perturbed texture shown below each)",
+        max(0.02, stack_bottom - 0.03),
+        "Experiment condition (example perturbed textures shown below each)",
         ha="center",
         va="top",
     )
@@ -346,7 +383,7 @@ def plot_accuracy(
     records: Sequence[ExperimentRecord],
     output_path: Path,
     title: str = "LBP accuracy across experiment conditions",
-    previews: Optional[dict[str, Optional[Image.Image]]] = None,
+    previews: Optional[dict[str, list[Image.Image]]] = None,
 ) -> Path:
     """Grouped bar plot: x = experiment condition, color = LBP config, y = accuracy (%)."""
     lbp_labels = _ordered_unique([r.lbp_label for r in records])
@@ -364,10 +401,19 @@ def plot_accuracy(
     x_positions = list(range(num_groups))
 
     has_previews = bool(previews) and any(
-        previews.get(label) is not None for label in exp_labels
+        previews.get(label) for label in exp_labels
+    )
+    # Tallest preview stack across conditions, used to size the bottom margin.
+    preview_rows = (
+        max((len(previews.get(label, [])) for label in exp_labels), default=0)
+        if previews
+        else 0
     )
 
-    fig, ax = plt.subplots(figsize=(max(7, 1.8 * num_groups + 2), 6.5))
+    # Give a taller figure (and more reserved bottom space) when stacking
+    # multiple example thumbnails under each column.
+    fig_height = 6.5 + 0.9 * max(preview_rows - 1, 0)
+    fig, ax = plt.subplots(figsize=(max(7, 1.8 * num_groups + 2), fig_height))
 
     for series_idx, lbp_label in enumerate(lbp_labels):
         heights = [
@@ -403,8 +449,10 @@ def plot_accuracy(
     ax.set_axisbelow(True)
 
     if has_previews:
-        # Reserve the bottom portion of the figure for the preview thumbnails.
-        fig.tight_layout(rect=(0, 0.26, 1, 1))
+        # Reserve the bottom portion of the figure for the preview thumbnails;
+        # more rows of examples need a larger reserved margin.
+        bottom_margin = min(0.5, 0.26 + 0.14 * max(preview_rows - 1, 0))
+        fig.tight_layout(rect=(0, bottom_margin, 1, 1))
         _add_condition_previews(fig, ax, exp_labels, previews)
     else:
         fig.tight_layout()
@@ -514,8 +562,17 @@ def main(cli_args: Optional[Sequence[str]] = None) -> None:
         "--preview-example",
         default=None,
         help=(
-            "Name (or stem) of the target-dataset image to use for the preview "
-            "thumbnails. Defaults to the first image in the target folder."
+            "Name (or stem) of the target-dataset image to use as the first "
+            "preview thumbnail. Defaults to the first image in the target folder."
+        ),
+    )
+    parser.add_argument(
+        "--preview-count",
+        type=int,
+        default=2,
+        help=(
+            "Number of example perturbed textures to stack beneath each "
+            "condition (default: 2)."
         ),
     )
     parser.add_argument(
@@ -536,7 +593,9 @@ def main(cli_args: Optional[Sequence[str]] = None) -> None:
     previews = None
     if not args.no_previews:
         previews = build_condition_previews(
-            records, example_name=args.preview_example
+            records,
+            example_name=args.preview_example,
+            count=max(1, args.preview_count),
         )
 
     accuracy_path = plot_accuracy(

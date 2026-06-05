@@ -101,7 +101,7 @@ python plot_results.py
 
 This produces two figures in `results/plots/`:
 
-- **`accuracy_comparison.png`** — a grouped bar plot of accuracy (% correct matches). Each experiment condition is a separate x-axis group, and each LBP configuration is a differently coloured bar, so you can read off how each method degrades as conditions get harder. Beneath each condition is a small inset showing an example texture from the target dataset with that condition's perturbations applied (the same processing used during matching, and shown by the interactive `--visualize` tool), giving an at-a-glance intuition for how strong each perturbation is.
+- **`accuracy_comparison.png`** — a grouped bar plot of accuracy (% correct matches). Each experiment condition is a separate x-axis group, and each LBP configuration is a differently coloured bar, so you can read off how each method degrades as conditions get harder. Beneath each condition is a small stack of example textures from the target dataset (two by default) with that condition's perturbations applied (the same processing used during matching, and shown by the interactive `--visualize` tool), giving an at-a-glance intuition for how strong each perturbation is.
 - **`lbp_code_counts.png`** — a supplementary bar plot comparing the number of LBP codes (feature-vector length) per LBP configuration, making the dimensionality cost of each method easy to compare against its accuracy.
 
 The experiment conditions appear along the x-axis in the order they were run (so listing them worst-last gives a left-to-right "increasingly challenging" axis). Bars are coloured from a fixed brand palette, used in preference order: blue, pink, purple, gold, green (cycling if there are more than five configurations).
@@ -113,7 +113,8 @@ The experiment conditions appear along the x-axis in the order they were run (so
 - `--accuracy-filename` / `--codes-filename` (optional): output filenames for the two plots.
 - `--accuracy-title` / `--codes-title` (optional): plot titles.
 - `--no-previews` (optional flag): disable the perturbed-texture preview insets beneath the accuracy plot.
-- `--preview-example` (optional): name (or stem) of the target-dataset image to use for the preview insets. Defaults to the first image in the target folder.
+- `--preview-example` (optional): name (or stem) of the target-dataset image to use as the first preview inset. Defaults to the first image in the target folder.
+- `--preview-count` (optional): number of example perturbed textures to stack beneath each condition (default: 2).
 - `--show` (optional flag): also display the plots interactively.
 
 ---
