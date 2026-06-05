@@ -9,19 +9,18 @@ texture_extraction:
   local_binary_pattern:
     P: 8
     R: 1.0
-    method: "ror"
+    method: "uniform"
 
 matching:
   metric: "chi2"
   tolerance: 1
   top: 1
 
-
 query_image_processing:
   preprocessing:
-    gaussian_blur: null
-    gaussian_noise: 20
-    illumination: null
+    gaussian_blur: 1.0
+    gaussian_noise: 10
+    illumination: 1.1
     contrast: null
     
   cropping:
@@ -52,6 +51,6 @@ target_image_processing:
     method: "lanczos"
 
 output:
-  save_csv: true
-  save_pdf: true
+  save_csv: false
+  save_pdf: false
   visualize: true
