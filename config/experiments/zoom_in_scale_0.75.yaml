@@ -1,0 +1,48 @@
+# Experiment config: query images perturbed with blur, noise, and mild illumination shift.
+# The LBP texture extraction + matching parameters come from a separate --lbp-config.
+
+data:
+  query_images_folder: LBP_Test_Images/WellDefinedTextures_10Rotations_128
+  target_images_folder: LBP_Test_Images/WellDefinedTextures_128
+
+rng:
+  seed: 42
+
+query_image_processing:
+  preprocessing:
+    gaussian_blur: 0.0
+    gaussian_noise: 0.0
+    illumination: 1.0
+    contrast: null
+
+  cropping:
+    width: 96  # Zoom in to 75% of original size
+    height: 96
+    random_crop: true
+
+  resampling:
+    width: 128
+    height: 128
+    method: "lanczos"
+
+target_image_processing:
+  preprocessing:
+    gaussian_blur: null
+    gaussian_noise: null
+    illumination: null
+    contrast: null
+
+  cropping:
+    width: null
+    height: null
+    random_crop: false
+
+  resampling:
+    width: null
+    height: null
+    method: "lanczos"
+
+output:
+  save_csv: true
+  save_pdf: false
+  visualize: false

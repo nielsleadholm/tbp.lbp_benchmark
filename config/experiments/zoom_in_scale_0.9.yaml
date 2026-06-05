@@ -15,9 +15,9 @@ query_image_processing:
     illumination: 1.0
     contrast: null
 
-  cropping:
-    width: 100
-    height: 100
+  cropping: 
+    width: 115  # Zoom in to 90% of original size
+    height: 115
     random_crop: true
 
   resampling:
