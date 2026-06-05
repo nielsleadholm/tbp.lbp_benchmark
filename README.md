@@ -18,18 +18,26 @@ To install, clone the repo and install using pip and the included pyproject.toml
 Python version 3.9 or higher is required.
 
 ```bash
-git clone https://github.com/tcdubs/Local-Binary-Pattern_Automated_Benchmarking.git
-cd Local-Binary-Pattern_Automated_Benchmarking
+git clone https://github.com/nielsleadholm/tbp.lbp_benchmark.git
+cd tbp.lbp_benchmark
 
 python -m venv .venv
+```
 
-# Activate virtual environment
-# Mac/Linux:
+Then activate the virtual environment.
+
+Mac/Linux:
+```bash
 source .venv/bin/activate
+```
 
-# Windows:
+Windows:
+```bash
 .venv\Scripts\activate
+```
 
+Finally, install the project.
+```bash
 pip install -e .
 ```
 
@@ -40,12 +48,12 @@ pip install -e .
 To run the benchmark, ensure that you are in a shell terminal with the project root, ‘AutomatedLBP_Benchmarking’, as your current working directory and run the following command:
 
 ```bash
-Python run.py –-config config/default_config.yaml
+python run.py --config config/default_config.yaml
 ```
 
 This will run the benchmarker using the configuration file located at ‘AutomatedLBP_Benchmarking/config/default_config.yaml’.
 
-The program will take approximately 10 to 20 seconds to run– this is normal and expected. Once it is finished running, you will see matching-related statistics in standard output, as well as a visualization screen displaying which images were computed as having the most ‘similar’ feature vectors. The default configuration uses the ‘RotatedTexturePatches_NoBorder’ dataset, which is a dataset derived from a subset of images included in a texture dataset called “Describable Textures Dataset”, which was gathered at a Johns Hopkins University summer workshop, and is hosted by Oxford University (dataset available at this link: https://www.robots.ox.ac.uk/~vgg/data/dtd/index.html#overview). This dataset uses the labels (cracked, dotted, flecked, etc.) derived from the original creators of the dataset.
+The program will take approximately 10 to 20 seconds to run – this is normal and expected. Once it is finished running, you will see matching-related statistics in standard output, as well as a visualization screen displaying which images were computed as having the most ‘similar’ feature vectors. The default configuration uses the ‘RotatedTexturePatches_NoBorder’ dataset, which is a dataset derived from a subset of images included in a texture dataset called “Describable Textures Dataset”, which was gathered at a Johns Hopkins University summer workshop, and is hosted by Oxford University (dataset available at this link: https://www.robots.ox.ac.uk/~vgg/data/dtd/index.html#overview). This dataset uses the labels (cracked, dotted, flecked, etc.) derived from the original creators of the dataset.
 
 ---
 
@@ -105,20 +113,15 @@ data:
 ```
 **query_images_folder:**
 Path to dataset of images in which to be matched to a target dataset.
-    Must point to a directory containing only images (no nested folders)
-    Relative or absolute paths can be used (absolute is recommended)
-    Each image is expected to abide by the following encoding scheme:
-    IDENTIFIER_TEXTURE-CLASS_DISTANCE_ROTATION_LIGHTING.imageextension
-    In cases where distance, rotation, and/or lighting values are not known
-    or sourced, using a placeholder '0' is perfectly fine-- the only truly necessary
-    part of the filename encoding schema is 'TEXTURE-CLASS', which is used to drive
-    'correct' and 'incorrect' determinations for texture matching results.
+- Must point to a directory containing only images (no nested folders).
+- Relative or absolute paths can be used (absolute is recommended).
+- Each image is expected to abide by the following encoding scheme: `IDENTIFIER_TEXTURE-CLASS_DISTANCE_ROTATION_LIGHTING.IMAGE_EXTENSION`
+- In cases where distance, rotation, and/or lighting values are not known or sourced, using a placeholder '0' is perfectly fine-- the only truly necessary part of the filename encoding schema is 'TEXTURE-CLASS', which is used to drive 'correct' and 'incorrect' determinations for texture matching results.
 
 **target_images_folder:**
 Path to the dataset of images in which to be used to match against.
-    Images in this set must abide by the same encoding scheme as 'query_images_folder'.
-    This dataset should remain unprocessed in standard experimental setups to test
-    matching 'noisy' query images to a stored (target) dataset.
+- Images in this set must abide by the same encoding scheme as 'query_images_folder'.
+- This dataset should remain unprocessed in standard experimental setups to test matching 'noisy' query images to a stored (target) dataset.
 
 2) Random Number Generator
 ```yaml
@@ -126,10 +129,10 @@ rng:
     seed: 42
 ```
 **seed:**
-Controls randomness in the benchmark.
-    Ensures reproducibility across runs
-    Affects operations like random cropping or noise
-    Use the same seed when comparing configurations
+- Controls randomness in the benchmark.
+- Ensures reproducibility across runs.
+- Affects operations like random cropping or noise.
+- Use the same seed when comparing configurations.
 
 
 3) Texture Extraction
@@ -314,32 +317,24 @@ Note: results will be saved under a new directory as /results/*config_name*/matc
 #### Datasets
 
 There are multiple datasets provided. The TextureSwatches_ManualCapture is a dataset of photographs taken by hand on a collenction
-of 'texture swatches' which can be found [this Amazon link] (https://www.amazon.com/Autistic-Children-Assorted-Educational-Equipment/dp/B0CLZY3763/ref=sr_1_3?dib=eyJ2IjoiMSJ9.8dNda1VSeWhXevLy6JjrksNNIuCsllHZXWRNlu3p0HPyY7-Y_T9BNDUsMbs2WeHllBLKWr4snxcvwRQSUDshGF11ZdX9gude-O5RMKTbO2wyFRihPTci1dgYKtUj1gh9-n_CMiRi-Av1BvdOAhPlLCEjLU0MuFcgTBK3sJvg7AHh1JUj0Bvcc3OydmRVKT7kMtyCWKpYV-qNuY8tbpW7OAUclccIJAf-hrEuhOA86wphe3g2adkQOkPtj-OUUrr2QT02ElmAiwegOCc16rh8XX75MXp6cAlz987eJHk0Yog.29ZAGEJbOz3U4C0TnbRjFTzEO7ArGEavwDEHfbRz5ek&dib_tag=se&keywords=texture+swatches&qid=1777993426&sr=8-3)
+of 'texture swatches' which can be found [this Amazon link](https://www.amazon.com/Autistic-Children-Assorted-Educational-Equipment/dp/B0CLZY3763)
 
 The remaining datasets are curated from images sourced from the Describable Textures Dataset. Images were selected under the criteria that they were
- - representative of naturally encountered textures (no computer generated textures)
- - contained a single, repeated 'instance' of a texture (no compositional/mix-and-matched textures)
- - the texture comprised the majority or all of the image's contents
+- representative of naturally encountered textures (no computer generated textures)
+- contained a single, repeated 'instance' of a texture (no compositional/mix-and-matched textures)
+- the texture comprised the majority or all of the image's contents
 
  There are three datasets containing images at different rotations, 'WellDefinedTextures_10Rotations_64', 'WellDefinedTextures_10Rotations_128', and
  'WellDefinedTextures_10Rotations_256', each of which contain instances of a texture image at 10 different rotations of 36 degrees, 72 degrees, 108 degrees... up to 324 degrees in increments of 36 degrees. This serves to gather examples of textures rotated into orientations which do not fall perfectly along the x and y axis,
- as working with such rotations can give misleading results in terms of rational invariance due how bits are shifted in the ror and uniform LBP encoding schemes.
+ as working with such rotations can give misleading results in terms of rational invariance due to how bits are shifted in the ror and uniform LBP encoding schemes.
 These rotated variants are in the resolution labeled at the end of their respective directory's identifier.
 
 There is an image set labeled as 'WellDefinedTextures_128' which contains only the original, unrotated images in a 128x128 resolution.
 
-Lastly, there is a dataset named 'DTD_TexturePatches_ExampleSet' which contains an array of textured imaged from the DTD dataset and at different rotations.
+Lastly, there is a dataset named 'DTD_TexturePatches_ExampleSet' which contains an array of textured images from the DTD dataset and at different rotations.
 This dataset is useful for showing how LBP works on certain types of images, but shouldn't be used for refinement of any texture extraction setups to be used
 in the real world due to the inclusion of textures which would not be encountered in the real world, as well as an imprecise labeling scheme.
 
 The recommended setup to test isolated texture extraction and matching capabilities is to utilize the WellDefinedTextures_10Rotations_128 set
 as a query set against the WellDefinedTextures_128 dataset as the target set. This will test all rotated variants of an image (including any noise configured
 to be added) against their non-rotated counterparts.
-
-The recommended setup to test texture exttraction and matching capabilities in a system such as Monty which may contain many images of the same texture
-but at different orientations, translations, etc., it is recommended to test any of the 'WellDefinedTextures_10Rotations' variants against themselves (so as both
-the query and target dataset). This will simulate matching textures to repeated records of itself at different rotations/translations, as well as many
-other textures, each of which contains multiple repeated records in the same fashion. From here, tolerance values can be derived from the post-run matching
-statistics, which can be fed back in to the system on a next-run basis to tune the tolerance value to a point where it can best filter out false positives
-without losing too many true positives.
- 
