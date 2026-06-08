@@ -505,6 +505,11 @@ def plot_lbp_code_counts(
         if r.num_lbp_codes is not None and codes_by_lbp.get(r.lbp_label) is None:
             codes_by_lbp[r.lbp_label] = r.num_lbp_codes
 
+    # Rank configs by number of LBP codes, most codes first (left-most).
+    lbp_labels = sorted(
+        lbp_labels, key=lambda lbp: codes_by_lbp.get(lbp) or 0, reverse=True
+    )
+
     heights = [codes_by_lbp.get(lbp) or 0 for lbp in lbp_labels]
     x_positions = list(range(len(lbp_labels)))
     colors = [_color(i) for i in range(len(lbp_labels))]
