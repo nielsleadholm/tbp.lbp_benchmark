@@ -492,7 +492,7 @@ def plot_lbp_code_counts(
     ax.bar_label(bars, fmt="%d", padding=2, fontsize=9)
 
     ax.set_xticks(x_positions)
-    ax.set_xticklabels([_humanize(lbp) for lbp in lbp_labels])
+    ax.set_xticklabels([_humanize(lbp) for lbp in lbp_labels], rotation=45, ha="right")
     ax.set_ylabel("Number of LBP codes (feature-vector length)")
     ax.set_xlabel("LBP configuration")
     ax.set_title(title)
