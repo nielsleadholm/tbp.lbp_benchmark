@@ -240,7 +240,7 @@ def _select_example_files(
 def load_condition_previews(
     experiment_config_path: str,
     example_name: Optional[str] = None,
-    count: int = 2,
+    count: int = 3,
     size: tuple[int, int] = (128, 128),
 ) -> list[Image.Image]:
     """Render ``count`` target-dataset textures with a condition's perturbations applied.
@@ -296,7 +296,7 @@ def load_condition_previews(
 def build_condition_previews(
     records: Sequence[ExperimentRecord],
     example_name: Optional[str] = None,
-    count: int = 2,
+    count: int = 3,
     size: tuple[int, int] = (128, 128),
 ) -> dict[str, list[Image.Image]]:
     """Build ``count`` perturbation previews per experiment condition (first-seen config)."""
@@ -385,7 +385,12 @@ def plot_accuracy(
     title: str = "LBP accuracy across experiment conditions",
     previews: Optional[dict[str, list[Image.Image]]] = None,
 ) -> Path:
-    """Grouped bar plot: x = experiment condition, color = LBP config, y = accuracy (%)."""
+    """Grouped bar plot: x = experiment condition, color = LBP config, y = accuracy (%).
+
+    A leading ``Average`` group summarizes each config's mean accuracy across all
+    experiment conditions, and that average also fixes the bar ordering within
+    every group (highest-average config first).
+    """
     lbp_labels = _ordered_unique([r.lbp_label for r in records])
     exp_labels = _ordered_unique([r.experiment_label for r in records])
 
@@ -393,6 +398,26 @@ def plot_accuracy(
     accuracy: dict[tuple[str, str], Optional[float]] = {}
     for r in records:
         accuracy[(r.lbp_label, r.experiment_label)] = r.percent_correct
+
+    # Mean accuracy per config across all experiment conditions (ignoring any
+    # missing results), used both as a new leading group and to order the bars.
+    average_by_lbp: dict[str, float] = {}
+    for lbp_label in lbp_labels:
+        values = [
+            accuracy[(lbp_label, exp_label)]
+            for exp_label in exp_labels
+            if accuracy.get((lbp_label, exp_label)) is not None
+        ]
+        average_by_lbp[lbp_label] = sum(values) / len(values) if values else 0.0
+
+    # Highest average accuracy first; this determines bar order in every group.
+    lbp_labels = sorted(lbp_labels, key=lambda lbp: average_by_lbp[lbp], reverse=True)
+
+    # Prepend the synthetic "Average" condition and register its accuracy values.
+    AVERAGE_LABEL = "average"
+    exp_labels = [AVERAGE_LABEL] + exp_labels
+    for lbp_label in lbp_labels:
+        accuracy[(lbp_label, AVERAGE_LABEL)] = average_by_lbp[lbp_label]
 
     num_groups = len(exp_labels)
     num_series = len(lbp_labels)
@@ -437,6 +462,10 @@ def plot_accuracy(
     ax.set_xticks(x_positions)
     ax.set_xticklabels([_humanize(e) for e in exp_labels])
     ax.set_xlim(-0.5, num_groups - 0.5)
+    # Visually separate the leading "Average" summary group from the individual
+    # experiment conditions.
+    if num_groups > 1:
+        ax.axvline(0.5, color="#888888", linestyle="--", linewidth=0.8, alpha=0.7)
     ax.set_ylabel("Accuracy (% correct matches)")
     # When previews are drawn the x-axis label is added beneath the thumbnail
     # row (see _add_condition_previews) to avoid overlapping the images.
@@ -569,10 +598,10 @@ def main(cli_args: Optional[Sequence[str]] = None) -> None:
     parser.add_argument(
         "--preview-count",
         type=int,
-        default=2,
+        default=3,
         help=(
             "Number of example perturbed textures to stack beneath each "
-            "condition (default: 2)."
+            "condition (default: 3)."
         ),
     )
     parser.add_argument(
