@@ -1,9 +1,9 @@
 #!/bin/bash
 
 python run.py --lbp-config config/lbp/default_lbp.yaml --experiment-config config/experiments/clean.yaml config/experiments/bright_illumination.yaml config/experiments/dark_illumination.yaml config/experiments/gaussian_blur_0.5.yaml config/experiments/gaussian_blur_1.0.yaml config/experiments/gaussian_blur_2.0.yaml config/experiments/zoom_in_scale_0.9.yaml config/experiments/zoom_in_scale_0.75.yaml config/experiments/zoom_in_scale_0.5.yaml
-
 python run.py --lbp-config config/lbp/uniform_lbp.yaml --experiment-config config/experiments/clean.yaml config/experiments/bright_illumination.yaml config/experiments/dark_illumination.yaml config/experiments/gaussian_blur_0.5.yaml config/experiments/gaussian_blur_1.0.yaml config/experiments/gaussian_blur_2.0.yaml config/experiments/zoom_in_scale_0.9.yaml config/experiments/zoom_in_scale_0.75.yaml config/experiments/zoom_in_scale_0.5.yaml
-
+python run.py --lbp-config config/lbp/completed_ror.yaml --experiment-config config/experiments/clean.yaml config/experiments/bright_illumination.yaml config/experiments/dark_illumination.yaml config/experiments/gaussian_blur_0.5.yaml config/experiments/gaussian_blur_1.0.yaml config/experiments/gaussian_blur_2.0.yaml config/experiments/zoom_in_scale_0.9.yaml config/experiments/zoom_in_scale_0.75.yaml config/experiments/zoom_in_scale_0.5.yaml
+python run.py --lbp-config config/lbp/completed_ror_multiscale.yaml --experiment-config config/experiments/clean.yaml config/experiments/bright_illumination.yaml config/experiments/dark_illumination.yaml config/experiments/gaussian_blur_0.5.yaml config/experiments/gaussian_blur_1.0.yaml config/experiments/gaussian_blur_2.0.yaml config/experiments/zoom_in_scale_0.9.yaml config/experiments/zoom_in_scale_0.75.yaml config/experiments/zoom_in_scale_0.5.yaml
 python run.py --lbp-config config/lbp/ltp_ror_multiscale.yaml --experiment-config config/experiments/clean.yaml config/experiments/bright_illumination.yaml config/experiments/dark_illumination.yaml config/experiments/gaussian_blur_0.5.yaml config/experiments/gaussian_blur_1.0.yaml config/experiments/gaussian_blur_2.0.yaml config/experiments/zoom_in_scale_0.9.yaml config/experiments/zoom_in_scale_0.75.yaml config/experiments/zoom_in_scale_0.5.yaml
 
 python plot_results.py
