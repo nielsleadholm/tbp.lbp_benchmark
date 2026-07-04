@@ -6,9 +6,13 @@
 
 ## Overview
 
-Evaluate performance of Local Binary Pattern CV algorithms and similarity measures against image sets with simulated noise, illumination, scale shift, and other image transformation techniques.
+This repository supports evaluating the performance of Local Binary Pattern CV algorithms and similarity measures against image sets with simulated noise, illumination, scale shift, and other image transformations.
 
 This tool is designed to aid in the visualization and tuning of texture extraction pipelines which utilize local binary patterns as their primary mode of texture extraction. Specifically, it was designed to aid in development of texture extraction and texture feature comparison functionality within the Monty system developed by Thousand Brains Project.
+
+An example of the evaluations that can be performed, and the associated visualizations, is provided below:
+
+![Accuracy Comparison](./docs/figures/accuracy_comparison.png)
 
 ---
 
