@@ -1,3 +1,5 @@
+[![Limited Maintenance](https://img.shields.io/badge/Limited_Maintenance-%E2%9A%A0%EF%B8%8F-red)](#limited-maintenance)
+
 # Local Binary Pattern Benchmarking Tool
 
 ---
