@@ -129,6 +129,10 @@ def _bilinear_sample(
 ) -> np.ndarray:
     """Sample image at floating-point coordinates using bilinear interpolation.
 
+    This ensures that the sampled value is a weighted average of the four nearest
+    neighbors, which is useful for cases where the radius parameter does not land
+    exactly on pixel coordinates.
+
     Coordinates outside the image are clipped to the nearest valid boundary.
     """
     h, w = image.shape

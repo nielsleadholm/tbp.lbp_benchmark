@@ -1,0 +1,40 @@
+# LBP config: multi-scale rotation-invariant Local Ternary Pattern + matching.
+# Pair this with one or more experiment configs (see config/experiments/).
+
+texture_extraction:
+  multi_scale:
+    - local_ternary_pattern:
+        P: 8
+        R: 1.0
+        method: "ror"
+        threshold: 5
+    - local_ternary_pattern:
+        P: 8
+        R: 5.0
+        method: "ror"
+        threshold: 5
+    - local_ternary_pattern:
+        P: 8
+        R: 10.0
+        method: "ror"
+        threshold: 5
+    - local_ternary_pattern:
+        P: 8
+        R: 20.0
+        method: "ror"
+        threshold: 5
+    - local_ternary_pattern:
+        P: 8
+        R: 30.0
+        method: "ror"
+        threshold: 5
+    - local_ternary_pattern:
+        P: 8
+        R: 40.0
+        method: "ror"
+        threshold: 5
+
+matching:
+  metric: "chi2"
+  tolerance: 1
+  top: 1

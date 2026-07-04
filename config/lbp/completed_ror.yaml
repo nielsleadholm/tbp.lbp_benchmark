@@ -1,0 +1,13 @@
+# LBP config: texture extraction + matching parameters only.
+# Pair this with one or more experiment configs (see config/experiments/).
+
+texture_extraction:
+  completed_local_binary_pattern:
+    P: 8
+    R: 1.0
+    method: "ror"
+
+matching:
+  metric: "chi2"
+  tolerance: 1
+  top: 1

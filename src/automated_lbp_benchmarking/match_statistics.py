@@ -18,6 +18,21 @@ class MatchDistanceStats:
     total_incorrect: int
     percent_correct: float | None
 
+    def as_dict(self) -> dict:
+        """Return the stats as a flat dictionary, suitable for CSV summary rows."""
+        return {
+            "total_matches": self.total_matches,
+            "total_correct": self.total_correct,
+            "total_incorrect": self.total_incorrect,
+            "percent_correct": self.percent_correct,
+            "highest_correct": self.highest_correct,
+            "lowest_correct": self.lowest_correct,
+            "average_correct": self.average_correct,
+            "highest_incorrect": self.highest_incorrect,
+            "lowest_incorrect": self.lowest_incorrect,
+            "average_incorrect": self.average_incorrect,
+        }
+
     def __str__(self) -> str:
         lines = [
             f"Total matches: {self.total_matches}",
